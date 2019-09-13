@@ -1,0 +1,110 @@
+*** Settings ***
+Library              SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library              SSHLibrary    WITH NAME    SSHL
+Resource             selenium/Login/SeleniumLoginLib.txt
+Resource             selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessAdvancedLib.txt
+Resource             selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessBasicLib.txt
+Resource             selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource             ssh/SshLib.txt
+Resource             variables/AllVariables.txt
+
+*** Variables ***
+${LOGIN_BUTTON}                                xpath=//button[@class="loginBtn"]
+
+*** Keywords ***
+GW020BRC_FUNC_31_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+    ###SSH
+    Open Connection And Login To Remote Machine    ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+    Delete All Wireless
+    SSHL.Close All Connections
+
+GW020BRC_FUNC_31_Wifi_Rescan
+    [Arguments]                              ${wifi_ssid}
+    SSHL.Execute Command                     nmcli device wifi rescan
+    ${wirelessList}=                         SSHL.Execute Command    nmcli device wifi list
+    Should Contain                           ${wirelessList}    ${wifi_ssid}
+
+GW020BRC_FUNC_31
+    SL.Set Selenium Speed                    0.7
+    Set Test Message                         *HTML* <b>GW020BRC_FUNC_31</b>
+    Log To Console                           Check WiFi Standard
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+
+    ### Change Main SSID Name
+    Log To Console                         \nChange Main SSID Name\n
+    Open Wireless Configure Page
+    Name SSID                               ssid=${WIFI_SSID_1}
+
+    ###Change Wireless Mode
+    Log To Console                         \nStep 1: Verify Wifi mode 11bgn\n
+    Open Wireless Advanced Page
+    Select Wireless Mode                   11bgn
+
+    #Verify
+    ####PC Connect to Wifi
+    Log To Console                                 \nPC Connect to Wifi\n
+    Open Connection And Login To Remote Machine    ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+    Delete All Wireless
+    Wait Until Keyword Succeeds                    120s    5s    GW020BRC_FUNC_31_Wifi_Rescan    wifi_ssid=${WIFI_SSID_1}
+    ${wlan_interface}=                             SSHL.Execute Command    nmcli --fields Device,Type device status | grep 'wifi' | awk '{print $1}'
+    Connect To Wifi                                ${wlan_interface}    ${WIFI_SSID_1}
+
+    ###Change Wireless Mode
+    Select Wireless Mode                           11b
+
+    #Verify
+    Connect To Wifi                                ${wlan_interface}    ${WIFI_SSID_1}
+
+    ###Change Wireless Mode
+    Log To Console                                 \nStep 3: Verify Wifi mode 11bg\n
+    Select Wireless Mode                           11bg
+
+    #Verify
+    Connect To Wifi                                ${wlan_interface}    ${WIFI_SSID_1}
+
+    ###Change Wireless Mode
+    Log To Console                                 \nStep 4: Verify Wifi mode 11n only\n
+    Select Wireless Mode                           11n only
+
+    #Verify
+    Connect To Wifi                                ${wlan_interface}    ${WIFI_SSID_1}
+    Delete All Wireless
+
+    [Teardown]    Run Keyword And Ignore Error     GW020BRC_FUNC_31_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_31
+#     GW020BRC_FUNC_31        ${WIFI_SSID_1}     ${TEST_CONTROL_PC_WIRELESS_NETWORK_INTERFACE}
+
+# *** Test cases ***
+# GW020BRC_FUNC_31
+    # GW020BRC_FUNC_31

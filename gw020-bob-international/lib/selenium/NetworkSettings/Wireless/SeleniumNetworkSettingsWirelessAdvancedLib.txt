@@ -1,0 +1,33 @@
+*** Settings ***
+Library                      SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library                      String    WITH NAME    STR
+
+*** Variables ***
+
+*** Keywords ***
+##############################
+### Wireless Advanced Page ###
+##############################
+Open Wireless Advanced Page
+    [Arguments]                         ${wireless_advanced_url}=http://192.168.1.1/wlcfgadv.html
+    SL.Go To                            ${wireless_advanced_url}
+    SL.Wait Until Page Contains         Wireless -- Advanced         timeout=10s         error=\nWireless Advanced Page Does Not Show Up
+    SL.Page Should Contain              Wireless -- Advanced
+
+Select Wireless Mode
+    [Arguments]                         ${mode}
+    ${firstTwoChar}=                    STR.Get Substring                      ${mode}     0      2
+    ${splitedMode}=                     STR.Remove String Using Regexp          ${mode}     11
+    ${mode}=                            Set Variable If        '${firstTwoChar}' == '11'    ${splitedMode}
+    SL.Wait Until Element Is Visible    xpath=//select[@name="wlMode"]          timeout=10s     error=\nMode Select DropDown Does Not Show Up
+    Run Keyword If                      '${mode}' == 'n only'                   SL.Select From List By Value      xpath=//select[@name="wlMode"]       n
+    ...                                 ELSE                                    SL.Select From List By Value        xpath=//select[@name="wlMode"]          ${mode}
+    SL.Click Button                     xpath=//input[@value="Apply/Save"]
+
+Select Wireless Channel
+    [Arguments]                         ${channel}
+    SL.Wait Until Element Is Visible    xpath=//select[@name="wlChannel"]          timeout=60s     error=\nMode Select DropDown Does Not Show Up
+    SL.Select From List By Value        xpath=//select[@name="wlChannel"]          ${channel}
+    SL.Click Button                     xpath=//input[@value="Apply/Save"]
+    SL.Wait Until Element Is Visible    xpath=//select[@name="wlChannel"]          timeout=60s     error=\Channal Select DropDown Does Not Show Up after apply\n
+    SL.Page Should Contain Element      xpath=//div[contains(text(),"${channel}")]

@@ -1,0 +1,134 @@
+*** Settings ***
+Library                                          SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library                                          SSHLibrary    WITH NAME    SSHL
+Resource                                         selenium/Login/SeleniumLoginLib.txt
+Resource                                         selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource                                         selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessBasicLib.txt
+Resource                                         selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource                                         selenium/AdvancedFeatures/Routing/SeleniumAdvancedFeaturesRoutingStaticRoute.txt
+Resource                                         selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource                                         ssh/SshLib.txt
+Resource                                         variables/AllVariables.txt
+
+*** Variables ***
+${destination_ip_1}    10.84.107.0/24
+${gateway_ip_1}        10.84.22.1
+${ping_address_1}      10.84.107.1
+${LOGIN_BUTTON}      xpath=//button[@class="loginBtn"]
+
+*** Keywords ***
+GW020BRC_FUNC_42_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+
+GW020BRC_FUNC_42
+	[Arguments]								  ${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+    Log To Console                                WAN Static Routing
+    SL.Set Selenium Speed                         0.7
+    Set Test Message                              *HTML* <b>GW020BRC_FUNC_42</b>      
+
+    ##Login to Browser
+    Login To Browser                               remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                            url=${LOGIN_URL}
+    ...                                            username=${ONT_WEB_USER}
+    ...                                            password=${ONT_WEB_PASS}
+    ...                                            browser=${BROWSER}
+    Welcome Page Should Be Open
+
+    ######Remove existed Wan Service
+    Log To Console                                 \nAccess to Network Settings Wan Page and Remove existed WAN
+    # Sleep                                          5s
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+
+    #Step 1.1: Create PPPoE WAN with correct PPP username/password
+    Log To Console                                 \nStep 1.1: Create PPPoE WAN with correct PPP username/password
+    Create New Wan PPPoE                           url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                            network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                                            priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                                            vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    ...                                            ppp_username=${CORRECT_PPP_USERNAME}
+    ...                                            ppp_password=${CORRECT_PPP_PASSWORD}
+    ...                                            routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                            wan_interface=${PPPOE_WAN_INTERFACE}
+
+    ##Step 1.2: Verify WAN should success on web
+    Log To Console                                 \nStep 1.2: Verify WAN should success on web
+    Wait Until Keyword Succeeds                    5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+    ##Step 1.3: Verify Ping to 8.8.8.8 should success
+    Open Connection And Login To Remote Machine    ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+   
+    Log To Console                                 \nStep 1.3: Verify Ping to 8.8.8.8 should success
+    ${lan_interface}=                              SSHL.Execute Command    ifconfig | grep -B1 "inet addr:192.168" | awk '$1!="inet" && $1!="--" {print $1}'
+    Wait Until Keyword Succeeds                    5x    1s    Ping Should Succeed    ping_address=${TO_GOOGLE}    network_interface=${lan_interface}
+
+    ##Step 1.4: Verify Ping to ${ping_address} should failed
+    Log To Console                                 \nStep 1.4: Verify Ping to ${ping_address_1} should failed
+    Wait Until Keyword Succeeds                    5x    1s    Ping Should Failed    ping_address=${ping_address_1}    network_interface=${lan_interface}
+
+    ###Step 2.1:  Create IPoE WAN
+    Log To Console                           \nStep 2.1: Create IPoE WAN\n
+    Open Network Settings Wan Page           url=${NETWORK_SETTINGS_WAN_URL}
+
+    Create New Wan IPoE                      url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                      network_protocol=${IPOE_NETWORK_PROTOCOL}
+    ...                                      priority=${CORRECT_IPOE_VLAN_PRIORITY}
+    ...                                      vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+    ...                                      routing_default_gw=ppp0.2
+    ...                                      wan_interface=ppp0.2
+
+    ############Step 2.2: Verify IPoE WAN with Dynamic IP should success on web
+    Log To Console                           \nStep 2.2: Verify IPoE WAN with Dynamic IP should success on web
+    Wait Until Keyword Succeeds                    5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}    
+    ${wan_interface}=                       Get Wan Interface    vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+    Set Suite Variable                       ${wan_interface}
+
+    ##Step 2.3: Verify Ping to 8.8.8.8 should success
+    Log To Console                                 \nStep 2.3: Verify Ping to 8.8.8.8 should success
+    Wait Until Keyword Succeeds                    5x    1s    Ping Should Succeed    ping_address=${TO_GOOGLE}    network_interface=${lan_interface}
+
+    ##Step 2.4: Verify Ping to ${ping_address} should failed
+    Log To Console                                 \nStep 2.4: Verify Ping to ${ping_address_1} should failed
+    Wait Until Keyword Succeeds                    5x    1s    Ping Should Failed    ping_address=${ping_address_1}    network_interface=${lan_interface}
+
+    ###Step 3: Add Static Route
+    Log To Console                          \nStep 3: Add Static Route on ONT\n
+
+    Open Static Route Page
+    Create Static Route                     destination_ip=${destination_ip_1}
+    ...                                     interface=${wan_interface}
+    ...                                     gateway_ip=${gateway_ip_1}
+
+    ####Step 4.1 : Verify Ping to 8.8.8.8 should success   
+    Log To Console                                 \nStep 4.1: Verify Ping to 8.8.8.8 should success
+    Wait Until Keyword Succeeds                    5x    1s    Ping Should Succeed    ping_address=${TO_GOOGLE}    network_interface=${lan_interface}
+
+    ####Step 4.2 : Verify Ping to ${ping_address} should success
+    Log To Console                                 \nStep 4.2: Verify Ping to ${ping_address_1} should success
+    Wait Until Keyword Succeeds                    5x    1s    Ping Should Succeed    ping_address=${ping_address_1}    network_interface=${lan_interface}    
+
+    [Teardown]     Run Keyword And Ignore Error   GW020BRC_FUNC_42_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_42
+    # GW020BRC_FUNC_42					CORRECT_IPOE_VLAN_ID_DYNAMIC=203

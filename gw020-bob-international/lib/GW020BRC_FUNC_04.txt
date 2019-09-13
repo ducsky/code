@@ -1,0 +1,95 @@
+*** Settings ***
+Library                                            SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library                                            SSHLibrary    WITH NAME    SSHL
+Library                                            String    WITH NAME    STR
+Resource                                           selenium/Login/SeleniumLoginLib.txt
+Resource                                           selenium/DeviceInfo/OpticalInfo/SeleniumDeviceInfoOpticaLInfoLib.txt
+Resource                                           selenium/Management/SLIDConfig/SeleniumManagementSLIDConfigLib.txt
+Resource                                           ssh/SshLib.txt
+
+*** Variables ***
+${id_pon_olt}    1
+${id_onu}        2
+
+*** Keywords ***
+GW020BRC_FUNC_04_Teardown
+    SL.Delete All Cookies
+    SL.Close All Browsers
+    SSHL.Close All Connections
+
+GW020BRC_FUNC_04
+    [Arguments]                              ${slid}=002470795    ${ip_olt}=10.84.1.107    ${user_olt}=isadmin    ${pass_olt}=ans#150
+    SL.Set Selenium Speed                    0.7
+    Set Test Message                         *HTML* <b>GW020BRC_FUNC_04</b> 
+    Log To Console                           \nStep 1.1: Log in to Browser
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+
+    Open Optical Info Page
+    ${serial}=                               Get Serial Number
+    ${serial}=                               STR.Replace String    ${serial}    VNPT    VNPT:
+
+    ${rx_dBm}=                               Get Rx Optics Signal Level
+    ${tx_dBm}=                               Get Tx Optics Signal Level
+
+    ${rx}=                                   STR.Strip String    string=${rx_dBm}      characters=${SPACE}dBm
+    ${tx}=                                   STR.Strip String    string=${tx_dBm}      characters=${SPACE}dBm
+
+    Should Be True                           -27<${rx}<-8  
+    Should Be True                             0<${tx}<5 
+
+    # Log To Console                           \nStep 1.2: Open SLID Config Page => Get Current SLID
+    # Go To SLID Config Page
+    # ${slid}=                                 Run Keyword    Get Current SLID 
+    
+    # Log To Console                           \nStep 1.3: Change correct SLID
+    # Change SLID                              ${slid}
+    # Alert Should Not Be Present
+
+    Log To Console                           \nStep 1.4: Telnet to OLT ALU
+    Open Connection And Login To Remote Machine             ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                                     ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                                     ssh_server_password=${REMOTE_SERVER_PASSWORD}
+    SSHL.Write                               telnet ${ip_olt}
+    SSHL.Read Until                          login:
+    SSHL.Write                               ${user_olt}
+    SSHL.Read Until                          password:
+    SSHL.Write                               ${pass_olt}
+    SSHL.Read Until                          \#
+    SSHL.Write                               environment inhibit-alarms
+    SSHL.Read Until                          \#
+    SSHL.Write                               show equipment ont interface | match exact:${serial}
+    ${output}=                               SSHL.Read Until    \#
+    ${line}=                                 STR.Get Lines Containing String    ${output}    ${serial}
+    @{line}=                                 STR.Split String    ${line}
+    ${port}=                                 Set Variable    @{line}[${0}]
+
+    SSHL.Write                               show equipment ont optics ${port}
+    ${rx_tx}=                                SSHL.Read Until    \#
+    ${line_rx_tx}=                           STR.Get Lines Containing String    ${rx_tx}    ${port}
+    @{line_rx_tx}=                           STR.Split String    ${line_rx_tx}
+    ${rx_cli}=                               Set Variable    @{line_rx_tx}[${1}]
+    ${tx_cli}=                               Set Variable    @{line_rx_tx}[${2}]
+    # Check rx cli, tx cli
+    Should Be True                           -27<${rx_cli}<-8  
+    Should Be True                             0<${tx_cli}<5
+
+    Log To Console   	                     \nCompare: Rx, Tx Web vs Rx, Tx CLI    
+    ${compare_rx}=                           Evaluate    ${rx}-${rx_cli}
+    ${compare_tx}=                           Evaluate    ${tx}-${tx_cli}
+    # Absolute Value (number): |-1|=1
+    ${compare_rx}=                           Evaluate    abs(${compare_rx})
+    ${compare_tx}=                           Evaluate    abs(${compare_tx})
+    # Compare: Rx, Tx Web vs Rx, Tx CLI
+    Should Be True                           ${compare_rx}<0.2
+    Should Be True                           ${compare_tx}<0.2
+
+    [Teardown]                               Run Keyword And Ignore Error    GW020BRC_FUNC_04_Teardown
+
+# *** Test Cases ***
+# GW020BRC_FUNC_04
+    # GW020BRC_FUNC_04    slid=002470795    ip_olt=10.84.1.107    user_olt=isadmin    pass_olt=ans#150

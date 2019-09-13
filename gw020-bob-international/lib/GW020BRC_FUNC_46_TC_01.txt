@@ -1,0 +1,189 @@
+*** Settings ***
+Library     SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library     AppiumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    AL
+Library     SSHLibrary    WITH NAME    SSHL
+Library     DateTime           WITH NAME    DT
+Resource    selenium/Login/SeleniumLoginLib.txt
+Resource    variables/AllVariables.txt
+Resource    appium/Settings/AppiumSettingsWifiLib.txt
+Resource    selenium/AdvancedFeatures/ParentalControl/SeleniumAdvancedFeaturesTimeRestrictionLib.txt
+Resource    selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource    selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource    selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessBasicLib.txt
+Resource    selenium/AdvancedFeatures/ParentalControl/SeleniumAdvancedFeaturesUrlFilterLib.txt
+Resource    selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource    selenium/Management/InternetTime/SeleniumManagementInternetTimeLib.txt
+Resource    Watching_Youtube_onPC.txt
+Resource    Ping_onSmartphone.txt
+Resource    ssh/SshLib.txt
+
+*** Variables ***
+${LOGIN_BUTTON}                              xpath=//button[@class="loginBtn"]
+
+*** Keywords ***
+GW020BRC_FUNC_46_TC_01_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+
+Add Time Restriction Page
+    [Arguments]                              ${mac_address}      ${start_time}    ${end_time} 
+    # Enter paremeters
+    #Enter username
+    SL.Input Text                            xpath=//input[@name="username"]    name
+    #Enter MAC Address
+    SL.Click Button                          xpath=(//input[@name='radioMac'])[2]
+    SL.Input Text                            xpath=//input[@name='cusMac']        ${mac_address}
+    #Select day of the week
+    SL.Click Button                          xpath=//input[@name='monday']
+    SL.Click Button                          xpath=//input[@name='tuesday']
+    SL.Click Button                          xpath=//input[@name='wednesday']
+    SL.Click Button                          xpath=//input[@name='thursday']
+    SL.Click Button                          xpath=//input[@name='friday'] 
+    SL.Click Button                          xpath=//input[@name='saturday']     
+    SL.Click Button                          xpath=//input[@name='sunday'] 
+
+    #Set time block
+    SL.Input Text                            xpath=//input[@name='startTime']    ${start_time}
+    SL.Input Text                            xpath=//input[@name='endTime']      ${end_time}
+
+    #Click to save config
+    SL.Click Button                          xpath=//input[@value="Apply/Save"]
+
+GW020BRC_FUNC_46_TC_01
+    SL.Set Selenium Speed                          0.7
+    Set Test Message                               *HTML* <b>GW020BRC_FUNC_46_TC_01</b>
+
+    Login To Browser                               remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                            url=${LOGIN_URL}
+    ...                                            username=${ONT_WEB_USER}
+    ...                                            password=${ONT_WEB_PASS}
+    ...                                            browser=${BROWSER}
+    Welcome Page Should Be Open
+   
+    #Access wireless basic configuration page
+    Open Wireless Configure Page                   wireless_configure_url=${WIRELESS_CONFIGURE_URL}
+    Enable Wireless
+
+    #####Change WiFi Name for Main SSID to '${WIFI_SSID_1}'
+    Log To Console                                \nChange WiFi Name for Main SSID to '${WIFI_SSID_1}'\n
+    Name SSID                                      ssid=${WIFI_SSID_1} 
+
+    Open Internet Time Page
+    Enable Checkbox InternetTime
+    Select Time Zone
+    Save Configuration Time Zone    
+    
+    #Create a PPPoE WAN
+    Log To Console                                 \nCreate Wan Service...
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+
+    Log To Console                                 Step 4: Create a PPPoE WAN
+    Create New Wan PPPoE                           url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                            network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                                            priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                                            vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    ...                                            ppp_username=${CORRECT_PPP_USERNAME}
+    ...                                            ppp_password=${CORRECT_PPP_PASSWORD}
+    ...                                            routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                            wan_interface=${PPPOE_WAN_INTERFACE}
+    ...                                            ppp_mtu_size=${PPPOE_MTU_SIZE}
+
+    #
+    Log To Console                                 Verify WAN should success on web
+    Wait Until Keyword Succeeds                    5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+    Open Connection And Login To Remote Machine    ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+    ${lan_interface}=                              SSHL.Execute Command    ifconfig | grep -B1 "inet addr:192.168" | awk '$1!="inet" && $1!="--" {print $1}'
+    Wait Until Keyword Succeeds                    5x    1s    Ping Should Succeed    ping_address=${TO_GOOGLE}    network_interface=${lan_interface}
+
+    # Connect device to wifi and get MAC address UE 
+    Log To Console                                 Get Mac Address Smartphone A
+    Open Wifi Picker Activity                      remote_server=${APPIUM_REMOTE_SERVER}
+    ...                                            remote_port=${APPIUM_REMOTE_PORT}
+    ...                                            platform=${PLATFORM_NAME}
+    ...                                            version=${PLATFORM_VERSION}
+    ...                                            ue_device_name=${DEVICE_NAME}
+    Turn On Wifi   
+    ${mac_address}=                                Get Mac Address
+    Forget Saved Network And Add Network           wifi_ssid=${WIFI_SSID_1}
+    ...                                            wifi_security=None
+    ...                                            status=Connected 
+    AL.Close Application   
+
+    #Step2: Go to Advanced Features -> Time Restriction and do some change
+    Go To Add Time Restriction Page
+
+    # Get current time 
+    ${start_time}=                                 Get Current Date  result_format= %H:%M
+    Log To Console                                 ${start_time}
+
+    ${CurrentDate}=                                Get Current Date  result_format=%Y-%m-%d %H:%M:%S.%f    
+    ${newdatetime} =                               Add Time To Date  ${CurrentDate}  4 minutes    
+    ${end_time} =	                               Convert Date	${newdatetime}	result_format= %H:%M
+    Log To Console                                 ${end_time}      
+
+    Add Time Restriction Page                      ${mac_address}    ${start_time}    ${end_time}
+
+    #Connect UE to wifi, it should cannot connect to wifi because it was block
+    Open Ping Application                          appium_server=${APPIUM_REMOTE_SERVER}
+    ...                                            appium_port=${APPIUM_REMOTE_PORT}
+    ...                                            platformName=Android
+    ...                                            platformVersion=6.0
+    ...                                            deviceName=${DEVICE_NAME}
+
+    Ping On Smartphone                             destination_ping=youtube.com
+    ...                                            number_packets=4
+    ...                                            mtu_packets=56
+    ...                                            interval_packets=1.0
+    ...                                            timeout_packets=3
+    Ping On Smartphone Should Failed
+    AL.Close Application   
+    Log To Console                                 \nThis Device was blocked
+    
+    #wait to finish block process
+    Sleep                                          240s
+    
+    #Reopen youtube to check connect to internet
+    Open Ping Application                          appium_server=${APPIUM_REMOTE_SERVER}
+    ...                                            appium_port=${APPIUM_REMOTE_PORT}
+    ...                                            platformName=Android
+    ...                                            platformVersion=6.0
+    ...                                            deviceName=${DEVICE_NAME}
+
+    Ping On Smartphone                             destination_ping=youtube.com
+    ...                                            number_packets=4
+    ...                                            mtu_packets=56
+    ...                                            interval_packets=1.0
+    ...                                            timeout_packets=3
+    Ping On Smartphone Should Succeed
+    AL.Close Application   
+    Log To Console                                 \nThis Device was blocked
+
+    Log To Console                                 \nThis device was connect success to internet  
+    SL.Close Browser 
+
+    [Teardown]    Run Keyword And Ignore Error       GW020BRC_FUNC_46_TC_01_TEARDOWN
+
+# *** Test Cases ***
+# GW020BRC_FUNC_46_TC_01
+    # GW020BRC_FUNC_46_TC_01          

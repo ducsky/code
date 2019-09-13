@@ -1,0 +1,39 @@
+*** Settings ***
+Library                                 SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+
+*** Variables ***
+${upgrade_firmware_url}                 http://192.168.1.1/upload.html
+
+*** Keywords ***
+Open Firmware Upgrade Page
+    SL.Go to                            ${upgrade_firmware_url}
+    SL.Wait Until Page Contains         Software Upgrade      timeout=10s      error=\nWireless upload firmware Configuration Page Does Not Show Up\n
+    SL.Page Should Contain              Software Upgrade
+
+Upgrade Firmware From PC To ONT
+    [Arguments]                         ${firmware_path}=G2.16A.06RTMP1_180831_1709
+    SL.Page Should Contain Element      xpath=//input[@name="filename"]    error=\nUpgrade Firmware button did not show up\n
+    SL.Choose File                      xpath=//input[@name="filename"]    ./${firmware_path}
+    Sleep                               1
+    SL.Click Element                    xpath=//input[@value="Software Upgrade"]
+    SL.Wait Until Element Is Visible    xpath=//b[contains(text(),"ONT Update")]     timeout=300
+
+Get Current Firmware Version
+    ${isAtDeviceInfoPage}=              Run Keyword And Return Status                       SL.Page Should Contain       Device Info
+    Run Keyword If                      '${isAtDeviceInfoPage}' == 'False'                  Open Device Info Summary Page
+    SL.Wait Until Element Is Visible    xpath=//tbody/tr[3]/td[2]
+    ...                                 timeout=10s
+    ...                                 error=\nBuild Timestamp Not Found
+    ${buildTimestamp}=                  SL.Get Text                                         xpath=//tbody/tr[3]/td[2]
+    SL.Wait Until Element Is Visible    xpath=//tbody/tr[4]/td[2]
+    ...                                 timeout=10s
+    ...                                 error=\nSoftware Version Not Found
+    ${softwareVersion}=                 SL.Get Text                                         xpath=//tbody/tr[4]/td[2]
+    [Return]                            ${buildTimestamp}       ${softwareVersion}
+
+Check Firmware version
+    [Arguments]                         ${build_timestamp}=180831_1709      ${software_version}=G2.16A.06RTMP1
+    ${isAtDeviceInfoPage}=              Run Keyword And Return Status       SL.Page Should Contain       Device Info
+    Run Keyword If                      '${isAtDeviceInfoPage}' == 'False'                  Open Device Info Summary Page
+    SL.Page Should Contain Element      xpath=//td[contains(text(),"${build_timestamp}")]    error=\nFirmware Build Timestamp is not correct\n
+    SL.Page Should Contain Element      xpath=//td[contains(text(),"${software_version}")]    error=\nFirmware Software version is not correct\n

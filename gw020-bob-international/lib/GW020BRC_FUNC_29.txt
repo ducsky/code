@@ -1,0 +1,141 @@
+*** Settings ***
+Library                                      SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library                                      SSHLibrary    WITH NAME    SSHL
+Resource                                     selenium/Login/SeleniumLoginLib.txt
+Resource                                     selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessBasicLib.txt
+Resource                                     selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource                                     ssh/SshLib.txt
+Resource                                     ssh/SshWirelessConnect.txt
+Resource                                     variables/AllVariables.txt
+
+*** Variables ***
+${LOGIN_BUTTON}                                xpath=//button[@class="loginBtn"]
+
+*** Keywords ***
+GW020BRC_FUNC_29_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+    ######Disable wifi
+    Open Connection And Login To Remote Machine    ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+    Delete All Wireless
+    SSHL.Close All Connections
+
+GW020BRC_FUNC_29_Wifi_Rescan
+    [Arguments]                                    ${wifi_ssid}
+    SSHL.Execute Command                           nmcli device wifi rescan
+    ${wirelessList}=                               SSHL.Execute Command    nmcli device wifi list
+    Should Contain                                 ${wirelessList}    ${wifi_ssid}    
+
+GW020BRC_FUNC_29_TC_01
+    SL.Set Selenium Speed   0.7
+    Log To Console          Thuc hien Testcase GW020_FUNC_29_TC_01
+    Log To Console          \nONT Device must be reset to default settings\n
+    ####Login To Browser
+    Login To Browser        remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                     url=${LOGIN_URL}
+    ...                     username=${ONT_WEB_USER}
+    ...                     password=${ONT_WEB_PASS}
+    ...                     browser=${BROWSER}
+    Welcome Page Should Be Open
+
+    ######Compare SSID With BSSID
+    Compare SSID With BSSID
+
+    ### Change SSID Name back to what user input
+    Log To Console          \nChange SSID Name back to what user input\n
+    Open Wireless Configure Page
+    Name SSID               ssid=${WIFI_SSID_1}
+    SL.Close Browser
+
+GW020BRC_FUNC_29_TC_02
+    #####Change SSID Name via WEBGUI
+    SL.Set Selenium Speed   0.3
+    Log To Console          \nStep 1: Change SSID Name via WEBGUI to ${WIFI_SSID_1}\n
+    Login To Browser        remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                     url=${LOGIN_URL}
+    ...                     username=${ONT_WEB_USER}
+    ...                     password=${ONT_WEB_PASS}
+    ...                     browser=${BROWSER}
+    Welcome Page Should Be Open
+    Open Wireless Configure Page
+    Name SSID               ssid=${WIFI_SSID_1}
+    
+
+    ####PC Connect to Wifi
+    Log To Console                                 \nPC Connect to Wifi\n
+    Open Connection And Login To Remote Machine    ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+
+    Delete All Wireless
+    Wait Until Keyword Succeeds                    120s    5s    GW020BRC_FUNC_29_Wifi_Rescan    wifi_ssid=${WIFI_SSID_1}
+    ${wlan_interface}=                             SSHL.Execute Command    nmcli --fields Device,Type device status | grep 'wifi' | awk '{print $1}'
+    Connect To Wifi                                ${wlan_interface}    ${WIFI_SSID_1} 
+
+    #####Reset factory, SSID should be set back to prefix_xxxxx
+    Log To Console          \nStep 2: Reset factory, SSID should be set back to prefix_xxxxx\n
+    Run Keyword And Continue On Failure      Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    # SL.Wait Until Page Contains              Access Control -- Passwords
+    # ...                                      timeout=20s
+    # ...                                      error=\nChange Password Page Does Not Show Up!
+    # Change Password                          admin    admin    ${ONT_WEB_PASS}    ${ONT_WEB_PASS}
+
+    # Log To Console                           \nStep 1.6: Relogin
+    # SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    # ...                                      timeout=20s
+    # ...                                      error=\nLogin Page Does Not Found!
+    # Input Username                           ${ONT_WEB_USER}
+    # Input User Password                      ${ONT_WEB_PASS}
+    # Submit Credentials
+    Welcome Page Should Be Open
+
+    SSID Should Be Set To Default
+
+########Get original SSID
+    ${DEFAULT_SSID}=         Get SSID
+    Set Suite Variable       ${DEFAULT_SSID}
+    Log to Console           \nSSID Has Set To Default Successfully!\n
+    Log To Console           \nOriginal SSID is ${DEFAULT_SSID} now!
+
+    #####Check SSID is not contain in WiFi list
+    Check SSID is not contain in WiFi list       ssid=${WIFI_SSID_1}
+    Log To Console           ${WIFI_SSID_1} is not contain in WiFi list after Reset Factory!!!
+
+GW020BRC_FUNC_29
+    Set Test Message     *HTML* <b>GW020BRC_FUNC_29</b>
+    Log To Console       Thuc hien Testcase GW020_FUNC_29_TC_01
+    GW020BRC_FUNC_29_TC_01    
+    Log To Console       Thuc hien Testcase GW020_FUNC_29_TC_02
+    GW020BRC_FUNC_29_TC_02    
+    [Teardown]    Run Keyword And Ignore Error     GW020BRC_FUNC_29_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_29
+    # GW020BRC_FUNC_29 

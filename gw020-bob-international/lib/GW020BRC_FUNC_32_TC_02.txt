@@ -1,0 +1,280 @@
+*** Settings ***
+Library                                       AppiumLibrary   run_on_failure=AL.Capture Page Screenshot    WITH NAME     AL
+Library                                       SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Resource                                      selenium/Login/SeleniumLoginLib.txt
+Resource                                      selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessBasicLib.txt
+Resource                                      selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessSecurityLib.txt
+Resource                                      appium/Settings/AppiumSettingsWifiLib.txt
+Resource                                      selenium/Management/Reboot/SeleniumManagementRebootLib.txt
+Resource                                      variables/AllVariables.txt
+Resource                                      Ping_onSmartphone.txt
+
+*** Variables ***
+${alertMessage}                               Password incorrect
+${BROWSER}									  firefox
+
+*** Keywords ***
+
+##### Use Firefox for this case
+
+Select Security mode WPA2-PSK for SSIDs 
+    [Arguments]                                    ${ssid_1}
+    ...                                            ${ssid_2}
+    ...                                            ${ssid_4}
+    ...                                            ${mode}
+    ...                                            ${alertMessage}
+    ...                                            ${password_failed_1}
+    ...                                            ${password_failed_2}
+    ...                                            ${correct_password}
+    ####Select Security for MAIN SSID
+    Log To Console                            \nStep 2.1: Select Security for MAIN SSID
+    Open Wireless Security Page               wireless_security_url=http://192.168.1.1/wlsec.html
+    Log To Console                            \nSelect Security for SSID ${ssid_1}
+    Select SSID                               ${ssid_1}
+    Select Network Authentication             ${mode}
+    Configure WPA2-PSK Mode                   ${password_failed_1}
+    ${alertMessage}=                          SL.Handle Alert
+    Log To Console                            ${alertMessage}
+    Configure WPA2-PSK Mode                   ${password_failed_2}
+    ${alertMessage}=                          SL.Handle Alert
+    Log To Console                            ${alertMessage}
+    Configure WPA2-PSK Mode                   ${correct_password}
+    Sleep									  5s
+
+    ### Select Security for SSID 2
+    Log To Console                            \nStep 2.2: Select Security for SSID 2
+    Select SSID                               ${ssid_2}
+    Select Network Authentication             ${mode}
+    Configure WPA2-PSK Mode                   ${password_failed_1}
+    ${alertMessage}=                          SL.Handle Alert
+    Log To Console                            ${alertMessage}
+    Configure WPA2-PSK Mode                   ${password_failed_2}
+    ${alertMessage}=                          SL.Handle Alert
+    Log To Console                            ${alertMessage}
+    Configure WPA2-PSK Mode                   ${correct_password}
+    Sleep									  5s
+
+
+
+    ### Select Security for SSID 4
+    Log To Console                            \nStep 2.3: Select Security for SSID 4
+    Select SSID                               ${ssid_4}
+    Select Network Authentication             ${mode}   
+    Configure WPA2-PSK Mode                   ${password_failed_1}
+    ${alertMessage}=                          SL.Handle Alert
+    Log To Console                            ${alertMessage}
+    Configure WPA2-PSK Mode                   ${password_failed_2}
+    ${alertMessage}=                          SL.Handle Alert
+    Log To Console                            ${alertMessage}
+    Configure WPA2-PSK Mode                   ${correct_password}
+    SL.Close All Browsers
+
+
+GW020BRC_FUNC_32_TC_02
+    SL.Set Selenium Speed                          0.8
+
+# ######STEP 1
+# ######Login
+    Set Test Message                         *HTML* <b>GW020BRC_FUNC_32_TC_02</b>    
+    Login with correct password
+
+
+# #####Enable Wireles
+    #Open Wireless Configure Page             wireless_configure_url=${WIRELESS_CONFIGURE_URL}
+    #Log To Console                           \nStep 1.2: Enable Wireless
+    #Enable Wireless
+
+# ########Get original SSID
+    #Log To Console                           \nStep 1.3: Get original SSIDs...
+    #${DEFAULT_SSID}=                         Get SSID
+    #Set Suite Variable                       ${DEFAULT_SSID}
+
+# #####Change WiFi Name for Main SSID to '${WIFI_SSID_1}'
+    Log To Console                          \nStep 1.4: Change WiFi Name for Main SSID to '${WIFI_SSID_1}'
+    Name SSID                                ssid=${WIFI_SSID_1}
+
+
+# #####Rename for SSID 2 and SSID 4
+    Log To Console                           \nStep 1.5: Rename for SSID 2 and SSID 4...
+    Enable Virtual Access Point               ${WIFI_SSID_2}         ${WIFI_SSID_4}
+
+
+    ################Select Security for MAIN SSID
+    Select Security mode WPA2-PSK for SSIDs        ssid_1=${WIFI_SSID_1}
+    ...                                            ssid_2=${WIFI_SSID_2}
+    ...                                            ssid_4=${WIFI_SSID_4}
+    ...                                            mode=WPA2 -PSK
+    ...                                            alertMessage=${alertMessage}
+    ...                                            password_failed_1=${WIFI_PASS_FAILED_1}
+    ...                                            password_failed_2=${WIFI_PASS_FAILED_2}
+    ...                                            correct_password=${WIFI_PASS}
+    
+# ########STEP 3
+    #### Verify UE device connected to WiFi_mode WPA2-PSK
+
+    Log To Console                          \nStep 3.1: Verify UE device connected to WiFi ${WIFI_SSID_1}
+    Open Wifi Picker Activity               remote_server=${APPIUM_REMOTE_SERVER}
+    ...                                     remote_port=${APPIUM_REMOTE_PORT}
+    ...                                     platform=${PLATFORM_NAME}
+    ...                                     version=${PLATFORM_VERSION}
+    ...                                     ue_device_name=${DEVICE_NAME}
+    Turn On Wifi
+    ${connect_wifi_success}=    Run Keyword And Return Status    Wait Until Keyword Succeeds    3x    1s    Forget Saved Network And Add Network_GW020_TC_12     wifi_ssid=${WIFI_SSID_1}    wifi_security=WPA2 PSK     wifi_password=${WIFI_PASS}
+    Run Keyword If    ${connect_wifi_success} == False       Log To Console     [ERROR] Cannot connect to Wifi
+    ${ip}=       Get Granted Ip Address
+    Should Contain                          ${ip}           ${ONT_SUBNET}
+
+   # # Tro ve man hinh chinh cua Wifi
+    # AL.Page Should Contain Element    xpath=//android.widget.ImageButton[@content-desc="Navigate up"]
+    # AL.Click Element     xpath=//android.widget.ImageButton[@content-desc="Navigate up"]
+    # Turn Off Wifi
+    # Turn On Wifi
+
+    # # Cho den khi chu "Connected, no Internet" duoc hien thi
+    # AL.Wait Until Element Is Visible    //android.widget.TextView[@text="Connected, no Internet"]    timeout=60
+    # ${ip}=       Get Granted Ip Address
+    # Should Contain                          ${ip}           ${ONT_SUBNET}
+
+
+
+    ##### Verify UE device connected to WiFi ssid_2
+    Log To Console                          \nStep 4: Verify UE device connected to WiFi ${WIFI_SSID_2}
+    # Tro ve man hinh chinh cua Wifi
+    AL.Page Should Contain Element    xpath=//android.widget.ImageButton[@content-desc="Navigate up"]
+    AL.Click Element     xpath=//android.widget.ImageButton[@content-desc="Navigate up"]
+    ${connect_wifi_success}=    Run Keyword And Return Status    Wait Until Keyword Succeeds    3x    1s    Forget Saved Network And Add Network_GW020_TC_12     wifi_ssid=${WIFI_SSID_2}    wifi_security=WPA2 PSK     wifi_password=${WIFI_PASS}
+    Run Keyword If    ${connect_wifi_success} == False       Log To Console     [ERROR] Cannot connect to Wifi
+    ${ip}=       Get Granted Ip Address
+    Should Contain                          ${ip}           ${ONT_SUBNET}
+   # # Tro ve man hinh chinh cua Wifi
+    # AL.Page Should Contain Element    xpath=//android.widget.ImageButton[@content-desc="Navigate up"]
+    # AL.Click Element     xpath=//android.widget.ImageButton[@content-desc="Navigate up"]
+    # Turn Off Wifi
+    # Turn On Wifi
+
+    # # Cho den khi chu "Connected, no Internet" duoc hien thi
+    # AL.Wait Until Element Is Visible    //android.widget.TextView[@text="Connected, no Internet"]    timeout=60
+    # ${ip}=       Get Granted Ip Address
+    # Should Contain                          ${ip}           ${ONT_SUBNET}
+
+    ##### Verify UE device connected to WiFi ssid_4
+    Log To Console                          \nStep 6: Verify UE device connected to WiFi ${WIFI_SSID_4}
+    # Tro ve man hinh chinh cua Wifi
+    AL.Page Should Contain Element    xpath=//android.widget.ImageButton[@content-desc="Navigate up"]
+    AL.Click Element     xpath=//android.widget.ImageButton[@content-desc="Navigate up"]
+    ${connect_wifi_success}=    Run Keyword And Return Status    Wait Until Keyword Succeeds    3x    1s    Forget Saved Network And Add Network_GW020_TC_12     wifi_ssid=${WIFI_SSID_4}    wifi_security=WPA2 PSK     wifi_password=${WIFI_PASS}
+    Run Keyword If    ${connect_wifi_success} == False       Log To Console     [ERROR] Cannot connect to Wifi
+    ${ip}=       Get Granted Ip Address
+    Should Contain                          ${ip}           ${ONT_SUBNET}
+
+    # ###Tro ve man hinh chinh cua Wifi
+    # AL.Page Should Contain Element    xpath=//android.widget.ImageButton[@content-desc="Navigate up"]
+    # AL.Click Element     xpath=//android.widget.ImageButton[@content-desc="Navigate up"]
+    # Turn Off Wifi
+    # Turn On Wifi
+
+    # # Cho den khi chu "Connected, no Internet" duoc hien thi
+    # AL.Wait Until Element Is Visible    //android.widget.TextView[@text="Connected, no Internet"]    timeout=60
+    # ${ip}=       Get Granted Ip Address
+    # Should Contain                          ${ip}           ${ONT_SUBNET}
+
+    AL.Close Application   
+
+
+
+# ########STEP 7
+# ##################Reboot ONT and Recheck
+    Log To Console                           \nStep 7.1: Reboot ONT device...
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Reboot Device Via Web GUI
+
+########Step 7.2: Recheck UE device
+    ###connected to Main SSID
+    #### Verify UE device connected to WiFi_mode WPA2-PSK
+
+    Log To Console                          \nStep 7.2: Verify UE device connected to WiFi ${WIFI_SSID_1}
+    Open Wifi Picker Activity               remote_server=${APPIUM_REMOTE_SERVER}
+    ...                                     remote_port=${APPIUM_REMOTE_PORT}
+    ...                                     platform=${PLATFORM_NAME}
+    ...                                     version=${PLATFORM_VERSION}
+    ...                                     ue_device_name=${DEVICE_NAME}
+    Turn On Wifi
+    ${connect_wifi_success}=    Run Keyword And Return Status    Wait Until Keyword Succeeds    3x    1s    Forget Saved Network And Add Network_GW020_TC_12     wifi_ssid=${WIFI_SSID_1}    wifi_security=WPA2 PSK     wifi_password=${WIFI_PASS}
+    Run Keyword If    ${connect_wifi_success} == False       Log To Console     [ERROR] Cannot connect to Wifi
+    ${ip}=       Get Granted Ip Address
+    Should Contain                          ${ip}           ${ONT_SUBNET}
+
+   # # Tro ve man hinh chinh cua Wifi
+    # AL.Page Should Contain Element    xpath=//android.widget.ImageButton[@content-desc="Navigate up"]
+    # AL.Click Element     xpath=//android.widget.ImageButton[@content-desc="Navigate up"]
+    # Turn Off Wifi
+    # Turn On Wifi
+
+    # # Cho den khi chu "Connected, no Internet" duoc hien thi
+    # AL.Wait Until Element Is Visible    //android.widget.TextView[@text="Connected, no Internet"]    timeout=60
+    # ${ip}=       Get Granted Ip Address
+    # Should Contain                          ${ip}           ${ONT_SUBNET}
+
+
+    ###connected to SSID 2
+    #### Verify UE device connected to WiFi_mode WPA2-PSK
+
+    Log To Console                          \nStep 7.3: Verify UE device connected to WiFi ${WIFI_SSID_2}
+   # Tro ve man hinh chinh cua Wifi
+    AL.Page Should Contain Element    xpath=//android.widget.ImageButton[@content-desc="Navigate up"]
+    AL.Click Element     xpath=//android.widget.ImageButton[@content-desc="Navigate up"]
+
+    ${connect_wifi_success}=    Run Keyword And Return Status    Wait Until Keyword Succeeds    3x    1s    Forget Saved Network And Add Network_GW020_TC_12     wifi_ssid=${WIFI_SSID_2}    wifi_security=WPA2 PSK     wifi_password=${WIFI_PASS}
+    Run Keyword If    ${connect_wifi_success} == False       Log To Console     [ERROR] Cannot connect to Wifi
+    ${ip}=       Get Granted Ip Address
+    Should Contain                          ${ip}           ${ONT_SUBNET}
+
+   # # Tro ve man hinh chinh cua Wifi
+    # AL.Page Should Contain Element    xpath=//android.widget.ImageButton[@content-desc="Navigate up"]
+    # AL.Click Element     xpath=//android.widget.ImageButton[@content-desc="Navigate up"]
+    # Turn Off Wifi
+    # Turn On Wifi
+
+    # # Cho den khi chu "Connected, no Internet" duoc hien thi
+    # AL.Wait Until Element Is Visible    //android.widget.TextView[@text="Connected, no Internet"]    timeout=60
+    # ${ip}=       Get Granted Ip Address
+    # Should Contain                          ${ip}           ${ONT_SUBNET}
+
+
+
+    #### Verify UE device connected to WiFi_mode WPA2-PSK
+
+    Log To Console                          \nStep 7.4: Verify UE device connected to WiFi ${WIFI_SSID_4}
+   # Tro ve man hinh chinh cua Wifi
+    AL.Page Should Contain Element    xpath=//android.widget.ImageButton[@content-desc="Navigate up"]
+    AL.Click Element     xpath=//android.widget.ImageButton[@content-desc="Navigate up"]
+
+    ${connect_wifi_success}=    Run Keyword And Return Status    Wait Until Keyword Succeeds    3x    1s    Forget Saved Network And Add Network_GW020_TC_12     wifi_ssid=${WIFI_SSID_4}    wifi_security=WPA2 PSK     wifi_password=${WIFI_PASS}
+    Run Keyword If    ${connect_wifi_success} == False       Log To Console     [ERROR] Cannot connect to Wifi
+    ${ip}=       Get Granted Ip Address
+    Should Contain                          ${ip}           ${ONT_SUBNET}
+
+   # # Tro ve man hinh chinh cua Wifi
+    # AL.Page Should Contain Element    xpath=//android.widget.ImageButton[@content-desc="Navigate up"]
+    # AL.Click Element     xpath=//android.widget.ImageButton[@content-desc="Navigate up"]
+    # Turn Off Wifi
+    # Turn On Wifi
+
+    # # Cho den khi chu "Connected, no Internet" duoc hien thi
+    # AL.Wait Until Element Is Visible    //android.widget.TextView[@text="Connected, no Internet"]    timeout=60
+    # ${ip}=       Get Granted Ip Address
+    # Should Contain                          ${ip}           ${ONT_SUBNET}
+
+    AL.Close Application
+
+
+    [Teardown]                                      Change Security Mode Teardown           ${DEFAULT_SSID}
+
+# *** Test cases ***
+# GW020BRC_FUNC_32_TC_02
+    # GW020BRC_FUNC_32_TC_02
+

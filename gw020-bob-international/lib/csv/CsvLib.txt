@@ -1,0 +1,16 @@
+*** Settings ***
+Library                        CSVLibrary    WITH NAME    CSV
+
+*** Variable ***
+
+*** Keywords ***
+Append Row
+    [Documentation]            Append data to new row,
+    ...                        Input:
+    ...                        1. csv_file_path
+    ...                        2. data_list: List contains data, using Create List keyword from BuiltIn library
+
+    [Arguments]                ${csv_file_path}     ${data_list}
+
+    ${data}=                   Create List          ${data_list}
+    CSV.Append To Csv File     ${csv_file_path}    ${data}

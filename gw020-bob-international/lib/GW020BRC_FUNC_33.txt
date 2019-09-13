@@ -1,0 +1,115 @@
+*** Settings ***
+Library              SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library              AppiumLibrary   run_on_failure=AL.Capture Page Screenshot    WITH NAME     AL
+Resource             selenium/Login/SeleniumLoginLib.txt
+Resource             selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessBasicLib.txt
+Resource             selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessSecurityLib.txt
+Resource             selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource             appium/Settings/AppiumSettingsWifiLib.txt
+Resource             variables/AllVariables.txt
+
+
+*** Variables ***
+${DEFAULT_SSID}                                iGate Wifi 1
+${LOGIN_BUTTON}                                xpath=//button[@class="loginBtn"]
+
+*** Keywords ***
+GW020BRC_FUNC_33_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+    AL.Close All Applications
+
+GW020BRC_FUNC_33
+    Log To Console                           Hide SSID Wifi
+    SL.Set Selenium Speed                    0.9
+    Set Test Message                         *HTML* <b>GW020BRC_FUNC_33</b>
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Sleep                                    5s
+    ####Enable Wireless
+    Open Wireless Configure Page
+    Enable Wireless
+
+#####Change WiFi Name for Main SSID to '${WIFI_SSID_1}'
+    Log To Console                            \nChange WiFi Name for Main SSID to '${WIFI_SSID_1}'
+    Name SSID                                  ssid=${WIFI_SSID_1}
+
+#####Rename for SSID 2 and SSID 4
+    Log To Console                             \nRename for SSID 2 and SSID 4...
+    Enable Virtual Access Point                ${WIFI_SSID_2}    ${WIFI_SSID_4}
+####Hide Access Point
+    Hide Access Point
+
+    ####Select Security for SSIDs
+    Open Wireless Security Page                wireless_security_url=http://192.168.1.1/wlsec.html
+
+####Select Security
+    Log To Console                             \nSelect Security for SSID ${WIFI_SSID_1}\n
+    Select SSID                                ${WIFI_SSID_1}
+    Select Network Authentication              mode=WPA2 -PSK
+    Configure WPA2-PSK Mode                    password=${WIFI_PASS}           encryptionType=AES       wpsMode=Disabled
+    Sleep                                      5s
+
+    Log To Console                             \nSelect Security for SSID ${WIFI_SSID_2}\n
+    Select SSID                                 ${WIFI_SSID_2}
+    Select Network Authentication              mode=Mixed WPA2/WPA -PSK
+    Configure Mixed WPA2/WPA-PSK Mode          password=${WIFI_PASS}           encryptionType=AES       wpsMode=Disabled
+    Sleep                                      5s
+
+    Log To Console                             \nSelect Security for SSID ${WIFI_SSID_4}\n
+    Select SSID                                ${WIFI_SSID_4}
+    Select Network Authentication              mode=WPA2 -PSK
+    Configure WPA2-PSK Mode                    password=${WIFI_PASS}           encryptionType=AES       wpsMode=Disabled
+    SL.Close Browser
+
+    #Verify for wifi ssid 1
+    #Verify Hide Access Point
+    Log To Console                            \nVerify UE device connected to WiFi SSIDs
+    Open Wifi Picker Activity                  remote_server=${APPIUM_REMOTE_SERVER}
+    ...                                        remote_port=${APPIUM_REMOTE_PORT}
+    ...                                        platform=${PLATFORM_NAME}
+    ...                                        version=${PLATFORM_VERSION}
+    ...                                        ue_device_name=${DEVICE_NAME}
+    Turn On Wifi
+    Log To Console                              \nAdd hidden network ${WIFI_SSID_1}\n
+    Add hidden network                          wifi_ssid=${WIFI_SSID_1}    wifi_password=${WIFI_PASS}
+    Sleep                                       5s
+
+    Log To Console                              \nAdd hidden network ${WIFI_SSID_2}\n
+    Add hidden network                          wifi_ssid=${WIFI_SSID_2}    wifi_password=${WIFI_PASS}
+    Sleep                                       5s
+
+    Log To Console                              \nAdd hidden network ${WIFI_SSID_4}\n
+    Add hidden network                          wifi_ssid=${WIFI_SSID_4}    wifi_password=${WIFI_PASS}
+    Sleep                                       5s
+    Forget Wifi SSID
+    Turn Off Wifi
+    AL.Close Application
+
+    [Teardown]                                  Run Keyword And Ignore Error    GW020BRC_FUNC_33_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_33
+    # GW020BRC_FUNC_33

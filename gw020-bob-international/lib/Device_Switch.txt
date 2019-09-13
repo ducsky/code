@@ -1,0 +1,76 @@
+*** Settings ***
+Library                                      SSHLibrary    WITH NAME    SSHL
+Library                                      String    WITH NAME    STR
+Resource                                     ssh/SshLib.txt
+Resource                                     variables/AllVariables.txt
+
+*** Variables ***
+
+*** Keywords ***
+Device_Switch_Teardown
+    ###Teardown
+    SSHL.Close All Connections
+
+GW020BRC
+    ${ports_down}=                          Create List    1/2    1/10    1/18
+    :FOR    ${port_down}                    IN    @{ports_down}
+    \     SSHL.Write                        interfaces ${port_down} admin down
+    \     SSHL.Read Until                   \#
+
+    ${ports_up}=                            Create List    1/1    1/9     1/17
+    :FOR    ${port_up}                      IN    @{ports_up}
+    \     SSHL.Write                        interfaces ${port_up} admin up
+    \     SSHL.Read Until                   \#
+
+GW040BRC
+    ${ports_down}=                          Create List    1/1    1/9     1/17
+    :FOR    ${port_down}                    IN    @{ports_down}
+    \     SSHL.Write                        interfaces ${port_down} admin down
+    \     SSHL.Read Until                   \#
+
+    ${ports_up}=                            Create List    1/2    1/10    1/18
+    :FOR    ${port_up}                      IN    @{ports_up}
+    \     SSHL.Write                        interfaces ${port_up} admin up
+    \     SSHL.Read Until                   \#
+
+Device_Switch
+    [Arguments]                             ${CLIENT_IP}=10.84.3.206
+    ...                                     ${device}=GW020BRC
+    ...                                     ${ip_switch}=10.0.0.1
+    ...                                     ${user_switch}=admin
+    ...                                     ${pass_switch}=adminswitch
+
+    Open Connection And Login To Remote Machine    ssh_server_ip=${CLIENT_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+
+    SSHL.Write                              telnet ${ip_switch}
+    SSHL.Read Until                         login :
+    SSHL.Write                              ${user_switch}
+    SSHL.Read Until                         password :
+    SSHL.Write                              ${pass_switch}
+    SSHL.Read Until                         \#
+
+    Run Keyword If                          '${device}' == 'GW020BRC'    GW020BRC
+    ...    ELSE IF                          '${device}' == 'GW040BRC'    GW040BRC
+    ...    ELSE                             Fail    msg=Please input device: GW020BRC or GW040BRC
+
+    SSHL.Write                              write memory
+    SSHL.Read Until                         \#
+    SSHL.Write                              copy working certified
+    SSHL.Read Until                         \#
+    SSHL.Write                              exit
+    SSHL.Read Until                         Connection closed by foreign host.
+
+    Set Test Message                        *HTML* <b>Switch to ${device}</b>      
+
+    Sleep                                   30s
+    [Teardown]                              Run Keyword And Ignore Error    Device_Switch_Teardown
+
+# *** Test cases ***
+# Device_Switch
+    # Device_Switch   10.84.3.206
+    # ...             GW020BRC
+    # ...             10.0.0.1
+    # ...             admin
+    # ...             adminswitch

@@ -1,0 +1,44 @@
+*** Settings ***
+Library                                  SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+
+*** Variables ***
+${internet_time_page}                    http://192.168.1.1/sntpcfg.html
+
+*** Keywords ***
+Open Internet Time Page
+    SL.Go To                             ${internet_time_page}
+    SL.Wait Until Page Contains          Time Settings
+    ...                                  timeout=10s
+    ...                                  error=\nInternet Time Page did not show up
+    SL.Page Should Contain               Time Settings
+
+###
+Enable Checkbox InternetTime
+    Log To Console                       \nEnable Checkbox InternetTime
+    SL.Page Should Contain Element       xpath=//input[@name="ntpEnabled"]
+    SL.Select Checkbox                   xpath=//input[@name="ntpEnabled"]
+    Log To Console                       Checkbox Internet Time is Enabled
+    SL.Page Should Contain Element       xpath=//select[@name="cboTimeZone"]
+
+###
+Select Time Zone
+    [Arguments]                          ${time_zone}=+07:00
+    Log To Console                       Select Time Zone ${time_zone}
+    SL.Page Should Contain Element       xpath=//select[@name="cboTimeZone"]
+    SL.Select From List By Value         xpath=//select[@name="cboTimeZone"]     ${time_zone}
+
+###
+Save Configuration Time Zone
+    Log To Console                       Save Configuration Time Zone
+    SL.Wait Until Element Is Visible     xpath=//input[@value="Apply/Save"]
+    ...                                  timeout=10s
+    ...                                  error=\nApply/Save button not found
+    SL.Click Element                     xpath=//input[@value="Apply/Save"]
+
+###
+Disable Checkbox InternetTime
+    SL.Page Should Contain Element       xpath=//input[@name="ntpEnabled"]
+    SL.Unselect Checkbox                 xpath=//input[@name="ntpEnabled"]
+    Log To Console                       Checkbox Internet Time is Disabled
+
+###

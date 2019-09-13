@@ -1,0 +1,57 @@
+*** Settings ***
+Documentation                Selenium Lib with Restore config feature
+Library                      SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Resource                     ../../SeleniumCommonLib.txt
+
+
+*** Variables ***
+#${config_file_path}                     /home/ubuntu/Downloads/backupsettings.conf
+${invalid_config_file_path}             /home/ubuntu/ONT.conf
+${restore_config_page}                  http://192.168.1.1/updatesettings.html
+
+*** Keywords ***
+Go To Restore Config Page
+    SL.Go To                            ${restore_config_page}
+    SL.Wait Until Page Contains         Settings -- Restore Settings
+    ...                                 timeout=10s
+    ...                                 error=\nRestore Config Page did not show up
+    SL.Page Should Contain              Settings -- Restore Settings
+
+Update And Validate
+    [Documentation]                    Click button update and validate result.
+    [Arguments]                         ${config_file_path}
+    SL.Page Should Contain Element      xpath=//input[@name="filename"]    error=\nUpload config button did not show up\n
+    SL.Choose File                      xpath=//input[@name="filename"]    ${config_file_path}
+    SL.Page Should Contain Element      xpath=//input[@value="Update Settings"]
+    SL.Click Element                    xpath=//input[@value="Update Settings"]
+    Sleep                               10s
+    SL.Wait Until Page Contains         Uploading is in progress. The ONT will reboot upon completion
+    ...                                 timeout=10s
+    ...                                 error=\nRestore Config Page Does Not Show Up!
+    SL.Page Should Contain              Uploading is in progress. The ONT will reboot upon completion
+    Run Keyword And Ignore Error        SL.Wait Until Element Is Visible     xpath=//button[@class="loginBtn"]
+    ...                                 timeout=120s
+    ...                                 error=\nLogin Page Does Not Found!
+
+Update Config
+    [Documentation]                     Click button update and validate result.
+    [Arguments]                         ${config_file_path}
+    SL.Page Should Contain Element      xpath=//input[@name="filename"]    error=\nUpload config button did not show up\n
+    SL.Choose File                      xpath=//input[@name="filename"]    ${config_file_path}
+    Click Button With Value             button_value=Update Settings
+
+Update With Invalid Config file
+    [Documentation]                     Restore with invalid config file.
+    [Arguments]                         ${invalid_config_file_path}
+    SL.Page Should Contain Element      xpath=//input[@name="filename"]    error=\nUpload config button did not show up\n
+    SL.Choose File                      xpath=//input[@name="filename"]    ${invalid_config_file_path}
+    SL.Page Should Contain Element      xpath=//input[@value="Update Settings"]
+    SL.Click Element                    xpath=//input[@value="Update Settings"]
+    Sleep                               10s
+    SL.Wait Until Page Contains         Image uploading failed
+    ...                                 timeout=10s
+    ...                                 error=\nRestore Config Page Does Not Show Up!
+    SL.Page Should Contain              Image uploading failed
+    SL.Page Should Contain Element      xpath=//input[@value="Back"]
+    SL.Click Element                    xpath=//input[@value="Back"]
+    Log To Console                      \nCan not Restore with invalid config file!\n

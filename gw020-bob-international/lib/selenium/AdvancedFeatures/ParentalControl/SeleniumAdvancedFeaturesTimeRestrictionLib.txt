@@ -1,0 +1,141 @@
+*** Settings ***
+Library                      SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+
+*** variables ***
+${time_restriction_url}=                  http://192.168.1.1/todmngr.tod?action=view
+${add_time_restriction_url}=              http://192.168.1.1/todadd.html
+@{day_in_week}=                           monday    tuesday    wednesday    thursday    friday    sartuday    sunday
+
+*** Keywords ***
+Go To Time Restriction Page
+    [Documentation]                       Go To Time Restriction Page
+    ...                                   Author:BinhNT5
+    ...                                   29/01/2018
+    SL.Go To                              ${time_restriction_url}
+    SL.Wait Until Page Contains           Parental Control -- Access Time Restriction    timeout=10
+    ...                                   error=\nRestriction time page dose not show up\n
+Go To Add Time Restriction Page
+    [Documentation]                       Go To Add Time Restriction Page
+    ...                                   Author:BinhNT5
+    ...                                   29/01/2018
+    SL.Go To                              ${add_time_restriction_url}
+    SL.Wait Until Page Contains           Parental Control -- Access Time Restriction    timeout=10
+    ...                                   error=\nRestriction time page dose not show up\n
+
+Confifure Restriction Time
+    [Documentation]                       Configure Time Restriction page
+    ...                                   Choose day in week to restrict
+    ...                                   Choose start restriction time
+    ...                                   choose end restriction time
+    ...                                   Variables:
+    ...                                   ${day_tmp}: Day in week.
+    ...                                   ${start_blocking_hour}: Start blocking hour
+    ...                                   ${start_blocking_minute}: Start blocking minute
+    ...                                   ${end_blocking_hour}: end blocking hour
+    ...                                   ${end_blocking_minute}: End blocking minute
+    ...                                   Author: BinhNT5
+    ...                                   29/1/2017
+    [Arguments]                           ${day_tmp}=monday
+    ...                                   ${start_blocking_hour}=14
+    ...                                   ${start_blocking_minute}=00
+    ...                                   ${end_blocking_hour}=14
+    ...                                   ${end_blocking_minute}=00
+    SL.Page Should Contain Element        xpath=//input[@name="username"]
+    SL.Input Text                         xpath=//input[@name="username"]    test1
+    # Choose specific day in week
+    :FOR     ${i}    IN RANGE             7
+    \    SL.Page Should Contain Element   xpath=//input[@name="@{day_in_week}[${i}]"]
+    \    Run Keyword IF                   "${day_tmp}" == "@{day_in_week}[${i}]"    SL.Select Checkbox
+    ...                                   xpath=//input[@name="@{day_in_week}[${i}]"]
+    \    Exit For Loop If                 "${day_tmp}" == "@{day_in_week}[${i}]"
+    \    Run Keyword If                   ${i} == 6    Fail    \nInput day is invalid\n
+    Log To Console                        Start blocking hour: ${start_blocking_hour}
+    Log To Console                        Start blocking minute: ${start_blocking_minute}
+    Log To Console                        End blocking hour: ${end_blocking_hour}
+    Log To Console                        End blocking minute: ${end_blocking_minute}
+    Run Keyword If                        ${start_blocking_hour} > ${24} or ${start_blocking_minute} > ${60}    Fail
+    ...                                   \nStart blocking time is invalid\n
+    Run Keyword If                        ${end_blocking_hour} > ${24} or ${end_blocking_minute} > ${60}    Fail
+    ...                                   \nend blocking time is invalid\n
+    Run Keyword If                        ${start_blocking_hour} > ${end_blocking_hour}    Fail
+    ...                                   \nStart blocking time must before end blocking time\n
+    SL.Page Should Contain Element        xpath=//input[@name="startTime"]
+    SL.Input Text                         xpath=//input[@name="startTime"]    ${start_blocking_hour}:${start_blocking_minute}
+    SL.Page Should Contain Element        xpath=//input[@name="endTime"]
+    SL.Input Text                         xpath=//input[@name="endTime"]    ${end_blocking_hour}:${end_blocking_minute}
+    SL.Page Should Contain Element        xpath=//input[@value="Apply/Save"]
+    SL.Click Element                      xpath=//input[@value="Apply/Save"]
+
+Return Time in Hour And Minute
+    [Documentation]                       Extract start blocking time and end blocking time to
+    ...                                   start blocking hour and start bloking minute, end blocking hour,
+    ...
+    ...                                   input:
+    ...                                   ${start_blocking_time_tmp}: Start blocking time
+    ...                                   ${end_blocking_time_tmp}: end blocking time
+    ...                                   output:
+    ...                                   ${start_blocking_hour}, ${start_blocking_minute}, ${end_blocking_hour}
+    ...                                   ${end_blocking_minute}
+    [Arguments]                           ${start_blocking_time_tmp}=14:00
+    ...                                   ${end_blocking_time_tmp}=14:00
+    ${start_blocking_hour}=               Should Match Regexp    ${start_blocking_time_tmp}    ^[0-9]+
+    ${start_blocking_hour}=               Convert To Integer     ${start_blocking_hour}
+    ${start_blocking_minute}=             Should Match Regexp    ${start_blocking_time_tmp}    \\:[0-9]+
+    ${start_blocking_minute}=             Should Match Regexp    ${start_blocking_minute}      [0-9]+
+    ${start_blocking_minute}=             Convert To Integer     ${start_blocking_minute}
+    ${end_blocking_hour}=                 Should Match Regexp    ${end_blocking_time_tmp}    ^[0-9]+
+    ${end_blocking_hour}=                 Convert To Integer     ${end_blocking_hour}
+    ${end_blocking_minute}=               Should Match Regexp    ${end_blocking_time_tmp}    \\:[0-9]+
+    ${end_blocking_minute}=               Should Match Regexp    ${end_blocking_minute}      [0-9]+
+    ${end_blocking_minute}=               Convert To Integer     ${end_blocking_minute}
+    [Return]                              ${start_blocking_hour}    ${start_blocking_minute}
+    ...                                   ${end_blocking_hour}    ${end_blocking_minute}
+
+Caculate Waiting Time To Restriction
+     [Documentation]                      Caculate time to wait from build job to start restriction time
+     ...                                  Author: BinhNT5
+     ...                                  30/1/2018
+     [Arguments]                          ${start_blocking_hour}
+     ...                                  ${start_blocking_minute}
+     ...                                  ${end_blocking_hour}
+     ...                                  ${end_blocking_minute}
+     ...                                  ${current_time_hour}
+     ...                                  ${current_time_minute}
+     Run Keyword If                       ${current_time_hour} > ${end_blocking_hour}    Fail
+     ...                                  \nend blocking time should after current time\n
+     Run Keyword If                       ${current_time_hour} == ${end_blocking_hour} and ${current_time_minute} >= ${end_blocking_minute}
+     ...                                  Fail    \nend blocking time should after current time\n
+     ${hour}=                             Evaluate    ${start_blocking_hour} - ${current_time_hour}
+     ${minute}=                           Evaluate    ${start_blocking_minute} - ${current_time_minute}
+     ${total_watting_time}=               Evaluate    ${hour}*${3600} + ${minute}*${60}
+     [Return]                             ${total_watting_time}
+
+Caculate Total Restriction Time
+    [Documentation]                       Caculate Total Restriction time
+
+    [Arguments]                           ${start_blocking_hour}
+    ...                                   ${start_blocking_minute}
+    ...                                   ${end_blocking_hour}
+    ...                                   ${end_blocking_minute}
+    ${hour}=                              Evaluate    ${end_blocking_hour} - ${start_blocking_hour}
+    ${minute}=                            Evaluate    ${end_blocking_minute} - ${start_blocking_minute}
+    ${total_time}=                        Evaluate    ${hour}*${3600} + ${minute}*${60}
+    [Return]                              ${total_time}
+
+Remove Time Restriction Entry
+    [Documentation]                       Remove Time Restriction entry with user is test1.
+    ...                                   Author: BinhNT5
+    ...                                   30/1/2018
+    ${check_entry_exist}=                 Run Keyword And Return Status     SL.Page Should Contain Element
+    ...                                   xpath=//input[@name="rml" and @value="test1"]
+    SL.Page Should Contain Element        xpath=//input[@value="Remove"]
+    Run Keyword If                        ${check_entry_exist}    Remove Time Restriction Entry Action
+
+Remove Time Restriction Entry Action
+    SL.Select Checkbox                    xpath=//input[@name="rml" and @value="test1"]
+    SL.Click Element                      xpath=//input[@value="Remove"]
+
+
+
+
+

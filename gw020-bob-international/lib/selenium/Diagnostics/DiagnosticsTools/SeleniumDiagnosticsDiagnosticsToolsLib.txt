@@ -1,0 +1,32 @@
+*** Settings ***
+Library                          SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+
+*** Variables ***
+${diagnostic_tools_url}                             http://192.168.1.1/diagtool.html
+
+*** Keywords ***
+Go To Diagnostic Tools Page
+    [Arguments]                              ${diagnostic_tools_url}=${diagnostic_tools_url}
+    SL.Go to                                 ${diagnostic_tools_url}
+    SL.Wait Until Page Contains              Diagnostic Tools
+    ...                                      timeout=10s
+    ...                                      error=\nDiagnostic Tools Page Does Not Found\n
+    SL.Page Should Contain                   Diagnostic Tools
+
+Select Ping tool
+    Log To Console                           \nSelect Ping tool\n
+    SL.Wait Until Element Is Visible         xpath=//td[contains(text(), "Ping")]/input
+    ...                                      timeout=20s
+    ...                                      error=\nSelect Ping tool Not Found
+    SL.Click Element                         xpath=//td[contains(text(), "Ping")]/input
+
+Select Trace tool
+    Log To Console                           \nSelect Trace tool\n
+    SL.Wait Until Element Is Visible         xpath=//td[contains(text(), "Trace")]/input
+    ...                                      timeout=20s
+    ...                                      error=\nSelect Ping tool Not Found
+    SL.Click Element                         xpath=//td[contains(text(), "Trace")]/input
+
+Input Diagnostic Ip Address
+    [Arguments]                               ${ip_diagnostic}
+    SL.Input Text                             xpath=//input[@name="address"]      ${ip_diagnostic}

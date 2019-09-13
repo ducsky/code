@@ -1,0 +1,152 @@
+*** Settings ***
+Library                      SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Resource                     selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource                     selenium/Login/SeleniumLoginLib.txt
+Resource                     selenium/Management/Reboot/SeleniumManagementRebootLib.txt
+Resource                     selenium/Login/SeleniumLoginWithOperatorUserLib.txt
+Resource                     selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource                     variables/AllVariables.txt
+
+*** Variables ***
+${LOGIN_BUTTON}                              xpath=//button[@class="loginBtn"]
+
+*** Keywords ***       
+GW020BRC_FUNC_01_TC_01_Teardown
+    [Arguments]                              ${ori_password}     ${random_password}     ${wrong_password}      ${block_password}     ${new_password}
+    ###Teardown
+    ###Sleep 180 to wait user/pass: Disable
+    Sleep                                    180s
+    Log To Console                           \nReset factory ONT Device...\n
+
+    @{pasword}    Create List    ${new_password}    ${block_password}    ${ONT_WEB_PASS}    ${ori_password}     ${random_password}     ${wrong_password}
+    :FOR    ${i}    IN    @{pasword}
+    \    SL.Close All Browsers
+    \    Login To Browser                    remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${i}
+    ...                                      browser=${BROWSER}
+    \    ${access_ctl}=                      Run Keyword And Return Status    SL.Wait Until Page Contains    Access Control -- Passwords
+    ...                                      timeout=10s
+    ...                                      error=\nChange Password Page Does Not Show Up!
+    \    ${user_disable}=                    Run Keyword And Return Status    SL.Element Should Be Disabled    xpath=//input[@id="userName"]
+    \    Run Keyword If    ${access_ctl}     Change Password    admin    ${i}    ${ONT_WEB_PASS}    ${ONT_WEB_PASS}
+    \    Run Keyword If    ${access_ctl}     SL.Wait Until Element Is Visible    ${LOGIN_BUTTON}    timeout=20s
+    \    Run Keyword If    ${access_ctl}     Input Username    ${ONT_WEB_USER}
+    \    Run Keyword If    ${access_ctl}     Input User Password    ${ONT_WEB_PASS}
+    \    Run Keyword If    ${access_ctl}     Submit Credentials
+    \    ...    ELSE IF    ${user_disable}   Sleep    180
+    \    ${login}=                           Run Keyword And Return Status    Welcome Page Should Be Open
+    \    Exit For Loop If    ${login}
+
+    ######Factory Reset Via Web GUI
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    SL.Wait Until Page Contains              Access Control -- Passwords
+    ...                                      timeout=20s
+    ...                                      error=\nChange Password Page Does Not Show Up!
+    Change Password                          admin    admin    ${ONT_WEB_PASS}    ${ONT_WEB_PASS}
+    Log To Console                           \nChange Password to ${ONT_WEB_PASS} Successfully!
+    SL.Delete All Cookies
+    SL.Close All Browsers
+
+GW020BRC_FUNC_01_TC_01  
+    [Arguments]                              ${username}       ${ori_password}     ${random_password}     ${wrong_password}      ${block_password}     ${new_password}
+    SL.Set Selenium Speed                    0.7
+    Set Test Message                         *HTML* <b>GW020BRC_FUNC_01_TC_01</b>       
+    Log To Console                           \nStep 1: Login to ONT web page
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Run Keyword And Continue On Failure      Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    SL.Wait Until Page Contains              Access Control -- Passwords
+    ...                                      timeout=20s
+    ...                                      error=\nChange Password Page Does Not Show Up!
+
+    Change Wrong Password                    inUserName=${username}
+    ...                                      old_pass=${ori_password}     
+    ...                                      new_pass=${new_password} 
+    ...                                      cfm_new_pass=${random_password}
+
+    ### Step 2.2: Change pass with wrong password
+    Change Wrong Password                    inUserName=${username}
+    ...                                      old_pass=${ori_password}     
+    ...                                      new_pass=${wrong_password}
+    ...                                      cfm_new_pass=${wrong_password}      
+
+    ##  Step 2.3: Change pass with block password
+    Change Wrong Password                    inUserName=${username}
+    ...                                      old_pass=${ori_password}     
+    ...                                      new_pass=${block_password}
+    ...                                      cfm_new_pass=${block_password}       
+
+    ### Step 2.4: Change pass with valid password
+    Change Password                          inUserName=${username}
+    ...                                      old_pass=${ori_password}     
+    ...                                      new_pass=${new_password}
+    ...                                      cfm_new_pass=${new_password}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+
+    Log To Console                           \nStep 3: Relogin web page ONT
+    ### Step 3.1: Relogin web page with old password    
+    Input Username                           ${username}
+    Input User Password                      ${ori_password}
+    Submit Credentials
+    SL.Page Should Contain                   The username or password is incorrect
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+
+    ### Step 3.2: Relogin web page with correct password
+    ### Step 3.1: Relogin web page with old password    
+    Input Username                           ${username}
+    Input User Password                      ${new_password}
+    Submit Credentials 
+    Welcome Page Should Be Open
+
+    Log To Console                           \nStep 4: Reboot ONT via Web GUI
+    Run Keyword And Continue On Failure      Reboot Device Via Web GUI    
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+
+    log To Console                           \nStep 5: Relogin Web page ONT
+    ### Step 5.1: Relogin web page with old password    
+    Input Username                           ${username}
+    Input User Password                      ${ori_password}
+    Submit Credentials
+    SL.Page Should Contain                   The username or password is incorrect
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+
+    ### Step 5.2: Relogin web page with correct password
+    Input Username                           ${username}
+    Input User Password                      ${new_password}
+    Submit Credentials 
+    Welcome Page Should Be Open
+
+    [Teardown]    Run Keyword And Ignore Error     GW020BRC_FUNC_01_TC_01_Teardown    ${ori_password}     ${random_password}     ${wrong_password}      ${block_password}     ${new_password}
+
+# *** Test Cases ***
+# GW020BRC_FUNC_01_TC_01
+   # GW020BRC_FUNC_01_TC_01                 admin       admin     12345678     ttcn@1234     ttcn@77CN      ttcn@99CN                         

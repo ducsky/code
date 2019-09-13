@@ -1,0 +1,115 @@
+*** Settings ***
+Library                                       SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library                                       SSHLibrary    WITH NAME    SSHL
+Resource                                      selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource                                      selenium/Login/SeleniumLoginLib.txt
+Resource                                      selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource                                      ssh/SshLib.txt
+Resource                                      selenium/Management/Reboot/SeleniumManagementRebootLib.txt
+Resource                                      selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource                                      variables/AllVariables.txt
+
+*** Variables ***
+${LOGIN_BUTTON}                               xpath=//button[@class="loginBtn"]
+
+*** Keywords ***
+GW020BRC_FUNC_10_TC_01_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+    ###Close SSH
+    SSHL.Close All Connections
+
+GW020BRC_FUNC_10_TC_01
+    #########Step 1: Login then access to Network Settings Wan Page
+    SL.Set Selenium Speed                    0.7
+    Set Test Message                         *HTML* <b>GW020BRC_FUNC_10_TC_01</b>
+    Log To Console                           \nStep 1.1: Login to WEBGUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+
+    Log To Console                           \nStep 1.2: Access to Network Settings Wan Page
+    ##########Step 2: Create IPoE WAN with VLAN Priority out of range [0-7]
+    Log To Console                           \nStep 2: Create IPoE WAN with VLAN Priority out of range [0-7]
+    Open Network Settings Wan Page           url=${NETWORK_SETTINGS_WAN_URL}
+    Create New Wan IPoE                      url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                      network_protocol=${IPOE_NETWORK_PROTOCOL}
+    ...                                      priority=${INVALID_PRIORITY}
+    ...                                      vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+    Popup Vlan Priority Out Of Range Should Be Visible     priority=${INVALID_PRIORITY}
+
+    ##########Step 3: VLAN ID out of range [0-4094]
+    Log To Console                           \nStep 3: Create IPoE WAN with VLAN ID out of range [0-4094]
+    Open Network Settings Wan Page           url=${NETWORK_SETTINGS_WAN_URL}
+    Create New Wan IPoE                      url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                      network_protocol=${IPOE_NETWORK_PROTOCOL}
+    ...                                      priority=${CORRECT_IPOE_VLAN_PRIORITY}
+    ...                                      vlan_id=${INVALID_VLAN}
+    Popup Vlan Id Out Of Range Should Be Visible     vlan_id=${INVALID_VLAN}
+
+    ###########Step 4: Correct VLAN Priority and VLAN ID
+    Log To Console                           \nStep 4: Create IPoE WAN with Dynamic IP that correct VLAN Priority and VLAN ID
+    Open Network Settings Wan Page           url=${NETWORK_SETTINGS_WAN_URL}
+    Create New Wan IPoE                      url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                      network_protocol=${IPOE_NETWORK_PROTOCOL}
+    ...                                      priority=${CORRECT_IPOE_VLAN_PRIORITY}
+    ...                                      vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+
+    ############Step 4.1: Verify IPoE WAN with Dynamic IP should success on web
+    Log To Console                           \nStep 4.1: Verify IPoE WAN with Dynamic IP should success on web
+    Wait Until Keyword Succeeds              5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+
+    ############Step 4.2: Verify Ping to ${TO_IPOE_GATEWAY} should success
+    Log To Console                           \nStep 4.2: Verify Ping to ${TO_IPOE_GATEWAY} should success
+    Open Connection And Login To Remote Machine    ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+    ${lan_interface}=                              SSHL.Execute Command    ifconfig | grep -B1 "inet addr:192.168" | awk '$1!="inet" && $1!="--" {print $1}'
+    Wait Until Keyword Succeeds                    12x    5s    Ping Should Succeed    ping_address=${TO_IPOE_GATEWAY}    network_interface=${lan_interface}
+
+
+    ############Step 5: Reboot device and recheck WAN status and IP address
+    Log To Console                           \nStep 5.1: Reboot device and recheck WAN status and IP address
+    Run Keyword And Continue On Failure      Reboot Device Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           username=${ONT_WEB_USER}
+    Input User Password                      password=${ONT_WEB_PASS}
+    Submit Credentials
+    Welcome Page Should Be Open
+    ###Step 5.3: Verify WAN IPoE with Dynamic IP should success on web
+    Wait Until Keyword Succeeds              5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+    SL.Close All Browsers
+
+    # Step 5.4: Verify Ping to ${TO_IPOE_GATEWAY} should success
+    Log To Console                           \nStep 5.2: Verify Ping to ${TO_IPOE_GATEWAY} should success
+    Wait Until Keyword Succeeds                    12x    5s    Ping Should Succeed    ping_address=${TO_IPOE_GATEWAY}    network_interface=${lan_interface}
+
+    [Teardown]    Run Keyword And Ignore Error     GW020BRC_FUNC_10_TC_01_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_10_TC_01
+    # GW020BRC_FUNC_10_TC_01

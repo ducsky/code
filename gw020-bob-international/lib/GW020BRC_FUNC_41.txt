@@ -1,0 +1,191 @@
+*** Settings ***
+Library                                        SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library                                        String     WITH NAME    STR
+Library                                        CSVLibrary     WITH NAME    CSV
+Library                                        SSHLibrary     WITH NAME    SSHL
+Resource                                      ./ssh/SshLib.txt
+Resource                                      ./selenium/Login/SeleniumLoginLib.txt
+Resource                                      ./selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource                                      ./selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource                                      ./selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessAdvancedLib.txt
+Resource                                      ./selenium/AdvancedFeatures/NAT/SeleniumAdvancedFeaturesNatDMZHost.txt
+Resource                                      ./selenium/AdvancedFeatures/Security/SeleniumAdvancedFeatureSecurityIPFilteringIncoming.txt
+Resource                                      ./selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource                                      ./variables/AllVariables.txt
+
+*** Variables ***
+${network_settings_wan_url}                    http://192.168.1.1/wancfg.cmd
+${LOGIN_BUTTON}                                xpath=//button[@class="loginBtn"]
+
+*** Keywords ***
+GW020BRC_FUNC_41_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+    ######Client
+    ${CLIENT_IP}=                            Get Variable Value    ${CLIENT_IP}
+    Login To Browser                         remote_selenium_server_tmp=${CLIENT_IP}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    SL.Wait Until Page Contains              Access Control -- Passwords
+    ...                                      timeout=20s
+    ...                                      error=\nChange Password Page Does Not Show Up!
+    Change Password                          admin    admin    ${ONT_WEB_PASS}    ${ONT_WEB_PASS}
+    Log To Console                           \nChange Password to ${ONT_WEB_PASS} Successfully!
+    SL.Delete All Cookies
+    SL.Close All Browsers
+    SSHL.Close All Connections
+
+GW020BRC_FUNC_41_Interface_IP
+    # Get wireless interface
+    Delete All Wireless
+    ${wlan_interface}=                      SSHL.Execute Command    nmcli --fields Device,Type device status | grep 'wifi' | awk '{print $1}'
+
+    # Get ethernet interface which connect to ONT
+    ${lan_interface}=                       SSHL.Execute Command    ifconfig | grep -B1 "inet addr:192.168" | awk '$1!="inet" && $1!="--" {print $1}'
+    @{interface_list}=                      STR.Split String     ${lan_interface}    \n
+
+    ${interface_connect_to_ont}=            Set Variable    ${EMPTY}
+    :FOR   ${int}   IN    @{interface_list}
+    \        ${interface_connect_to_ont}=   Set Variable If     '${int}' != '${wlan_interface}' and '${int}' != ''     ${int}
+
+    Should Not Be Empty                     ${interface_connect_to_ont}
+
+    ${ip_address_on_pc}=                    Get Network Interface Ip Address    network_interface=${interface_connect_to_ont}
+    [Return]                                ${ip_address_on_pc}
+
+GW020BRC_FUNC_41
+    [Arguments]                              ${CLIENT_IP}
+    SL.Set Selenium Speed                    0.7
+    Set Test Message                         *HTML* <b>GW020BRC_FUNC_41</b>
+    Set Suite Variable                       ${CLIENT_IP}
+    Log To Console                           Check Funtion NAT-DMZ Host
+    Log To Console                           \nTOPOLOGY: |Laptop1 - Iperf server| ------- |ONT 1| ----- |OLT| -------- |ONT 2| ------ |Laptop 2 - Iperf client|\n
+    Log To Console                           \nStep 0: Log in to Laptop2
+    Login To Browser                         remote_selenium_server_tmp=${CLIENT_IP}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+
+    Log To Console                           \nStep 0.1: Create a PPPoE WAN\n\n
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+    Create New Wan PPPoE                           url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                            network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                                            priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                                            vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    ...                                            ppp_username=${CORRECT_PPP_USERNAME}
+    ...                                            ppp_password=${CORRECT_PPP_PASSWORD}
+    ...                                            routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                            wan_interface=${PPPOE_WAN_INTERFACE}
+
+    Log To Console                           \nStep 0.2: Verify WAN should success on web\n\n
+    Wait Until Keyword Succeeds                    5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    SL.Close Browser
+
+    Log To Console                           \nStep 1: Log in to Laptop1 and create WAN PPPOE\n\n
+    Log To Console                           \nStep 1.1: Log in to Laptop1
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+
+    Log To Console                           \nStep 1.2: Create a PPPoE WAN\n\n
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+    Create New Wan PPPoE                           url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                            network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                                            priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                                            vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    ...                                            ppp_username=${CORRECT_PPP_USERNAME}
+    ...                                            ppp_password=${CORRECT_PPP_PASSWORD}
+    ...                                            routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                            wan_interface=${PPPOE_WAN_INTERFACE}
+
+    Log To Console                           \nStep 1.3: Verify WAN should success on web\n\n
+    Wait Until Keyword Succeeds                    5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    ${server_wan_ip}=                        Save WAN Ip Address    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    ${interface_name}=                       Get Wan Interface      vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+    Log To Console                           \nStep 1.4: Create ICMP filtering\n
+    Open ip filtering incoming Page
+    Create ICMP Filtering                    ICMPFiltering
+
+    Open Connection And Login To Remote Machine    ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+
+    ${ip_address}=                           GW020BRC_FUNC_41_Interface_IP
+    SSHL.Execute Command                     systemctl restart iperf3-server.service     sudo=True    sudo_password=123456
+    SSHL.Close Connection
+
+    Log To Console                            \nStep 1.5: Create NAT DMZ - Host\n
+    Open NAT DMZ Host Page
+    Create DMZ Host Server For Iperf3         server_ip_address=${ip_address}
+    SL.Close Browser
+
+    Log To Console                           \nStep 2: Connect to Laptop 2 via IP WAN\n\n
+    Log To Console                           \nStep 2.2 Execute ping to Laptop2 via IP WAN
+    Open Connection And Login To Remote Machine    ssh_server_ip=${CLIENT_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+
+    SSHL.Put File                            ./lib/shell_script/Check_Ping.sh    /home/ubuntu/    mode=777
+    ${ping_execution_result}=                Execute Command      bash /home/ubuntu/Check_Ping.sh ${server_wan_ip}
+    ${ping_result}=                          Run Keyword And Return Status     Should Contain     ${ping_execution_result}    PASSED
+    Run Keyword If                           not ${ping_result}    Fail    FAILED Server 1 can't connect to server 2
+
+    Log To Console                            \nStep 3: Get download and upload speed\n
+    SSHL.Start Command                       iperf3 -c ${server_wan_ip} -t 30 -fm --forceflush |& tee speed.txt
+    Sleep                                    60
+    SSHL.Put File                            lib/shell_script/Get_Download_Speed.sh    /home/ubuntu/    mode=777
+    ${download_result}=                      Execute Command      bash /home/ubuntu/Get_Download_Speed.sh
+    Set Test Message                         \nDownload Speed: ${download_result} Mbits/sec    append=True
+
+    SSHL.Get File                            /home/ubuntu/speed.txt     download_speed_for_GW020BRC_FUNC_41_data.txt
+    Log To Console                           \nDownload By Iperf3 complete!!!
+    SSHL.Close Connection
+
+    ##### Remote to Iperf server and stop iperf
+    Log To Console                            \nStep 4: ssh to pc1 and restart iperf3 service\n
+    Open Connection And Login To Remote Machine    ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+    SSHL.Execute Command                           systemctl stop iperf3-server.service     sudo=True    sudo_password=123456
+    SSHL.Close Connection
+
+    [Teardown]    Run Keyword And Ignore Error  GW020BRC_FUNC_41_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_41
+    # GW020BRC_FUNC_41                              10.2.14.191

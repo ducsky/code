@@ -1,0 +1,61 @@
+*** Settings ***
+Library                                    SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+
+*** Variables ***
+
+*** Keywords ***
+Open ip filtering incoming Page
+    [Arguments]                            ${security_ipfiltering_incoming}=http://192.168.1.1/scinflt.cmd?action=view
+    SL.Go To                               ${security_ipfiltering_incoming}
+    SL.Wait Until Page Contains            IP Filtering -- Incoming IP Filtering Setup
+    ...                                    timeout=60s
+    ...                                    error=\nVirtual Servers Setup did not show up
+
+Create ICMP Filtering
+    [Arguments]                            ${filter_name}
+    :FOR                                   ${i}     IN RANGE    2    9999
+    \    ${element_is_visible}=            Run Keyword And Return Status       SL.Element Should Be Visible    xpath=//table/tbody/tr[${i}]
+    \    Exit For Loop If                  not ${element_is_visible}
+    \    Run Keyword If                    ${element_is_visible}    Remove ICMP Filtering    ${i}
+    SL.Page Should Contain Element           xpath=//input[@value="Add"]
+    SL.Click Element                         xpath=//input[@value="Add"]
+    SL.Wait Until Page Contains            Add IP Filter -- Incoming    timeout=60s
+    SL.Page Should Contain Element         xpath=//input[@name="txtfltname"]
+    SL.Input Text                          xpath=//input[@name="txtfltname"]    ${filter_name}
+    SL.Select From List By Value           xpath=//select[@name="protocol"]     3
+    SL.Click Element                       xpath=//input[@value="Apply/Save"]
+    SL.Wait Until Page Contains            ${filter_name}     timeout=60s
+
+Remove ICMP Filtering
+    [Arguments]                              ${index}
+    SL.Select Checkbox                       xpath=//table/tbody/tr[${index}]/td/input[@name="rml"]
+    Sleep                                    2s
+    SL.Checkbox Should Be Selected           xpath=//table/tbody/tr[${index}]/td/input[@name="rml"]
+    SL.Page Should Contain Element           xpath=//input[@value="Remove"]
+    SL.Click Element                         xpath=//input[@value="Remove"]
+    SL.Wait Until Page Contains              IP Filtering -- Incoming IP Filtering Setup
+    ...                                      timeout=60s
+    ${remove_second_time}=                   Run Keyword And Return Status    SL.Element Should Be Visible    xpath=//table/tbody/tr[${index}]
+    Run Keyword If                           ${remove_second_time}     Remove ICMP Second Time    ${index}
+
+Remove ICMP Second Time
+    [Arguments]                              ${index}
+    SL.Select Checkbox                       xpath=//table/tbody/tr[${index}]/td/input[@name="rml"]
+    Sleep                                    2s
+    SL.Checkbox Should Be Selected           xpath=//table/tbody/tr[${index}]/td/input[@name="rml"]
+    SL.Page Should Contain Element           xpath=//input[@value="Remove"]
+    SL.Click Element                         xpath=//input[@value="Remove"]
+    SL.Wait Until Page Contains              IP Filtering -- Incoming IP Filtering Setup
+    ...                                      timeout=60s
+
+Add IP Filter Incoming
+    ###protocol: 0-TCP/UDP, 1-TCP, 2-UDP, 3-ICMP
+    [Arguments]                            ${filter_name}    ${protocol}=0
+    SL.Page Should Contain Element         xpath=//input[@value="Add"]
+    SL.Click Element                       xpath=//input[@value="Add"]
+    SL.Wait Until Page Contains            Add IP Filter -- Incoming    timeout=60s
+    SL.Page Should Contain Element         xpath=//input[@name="txtfltname"]
+    SL.Input Text                          xpath=//input[@name="txtfltname"]    ${filter_name}
+    SL.Select From List By Value           xpath=//select[@name="protocol"]     ${protocol}
+    SL.Click Element                       xpath=//input[@value="Apply/Save"]
+    SL.Wait Until Page Contains            ${filter_name}     timeout=60s

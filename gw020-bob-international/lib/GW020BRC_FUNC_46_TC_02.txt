@@ -1,0 +1,156 @@
+*** Settings ***
+Library     SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library     SSHLibrary    WITH NAME    SSHL
+Resource    selenium/Login/SeleniumLoginLib.txt
+Resource    variables/AllVariables.txt
+Resource    appium/Settings/AppiumSettingsWifiLib.txt
+Resource    selenium/AdvancedFeatures/ParentalControl/SeleniumAdvancedFeaturesTimeRestrictionLib.txt
+Resource    selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource    selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource    selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource    selenium/AdvancedFeatures/ParentalControl/SeleniumAdvancedFeaturesUrlFilterLib.txt
+Resource    ssh/SshLib.txt
+
+*** Variables ***
+${LOGIN_BUTTON}               xpath=//button[@class="loginBtn"]
+${URL_FILTER_URL}             http://192.168.1.1/urlfilter.cmd?action=view
+#Kenh14, Youtube, Google, Tinmoi
+${HTTP_URL}                   http://kenh14.vn
+${HTTPS_URL}                  https://www.youtube.com
+${CHECK_HTTPS_URL}            https://www.google.com.vn
+${CHECK_HTTP_URL}             http://www.tinmoi.vn
+#Kenh14, Youtube, Google, Tinmoi
+${HTTP_LOGO}                  //h1[@class='logo fl']/a
+${HTTPS_LOGO}                 //a[@id='logo']/div
+${CHECK_HTTPS_LOGO}           //div[@id='lga']/img
+${CHECK_HTTP_LOGO}            //div[@id='header']/div/a/img
+
+*** Keywords ***
+GW020BRC_FUNC_46_TC_02_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+
+GW020BRC_FUNC_46_TC_02
+    SL.Set Selenium Speed                          0.7
+    Set Test Message                               *HTML* <b>GW020BRC_FUNC_46_TC_02</b>
+
+    Login To Browser                               remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                            url=${LOGIN_URL}
+    ...                                            username=${ONT_WEB_USER}
+    ...                                            password=${ONT_WEB_PASS}
+    ...                                            browser=${BROWSER}
+    Welcome Page Should Be Open
+
+    #Create a PPPoE WAN
+    Log To Console                                 \nCreate Wan Service...
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+
+    Log To Console                                 Step 4: Create a PPPoE WAN
+    Create New Wan PPPoE                           url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                            network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                                            priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                                            vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    ...                                            ppp_username=${CORRECT_PPP_USERNAME}
+    ...                                            ppp_password=${CORRECT_PPP_PASSWORD}
+    ...                                            routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                            wan_interface=${PPPOE_WAN_INTERFACE}
+    ...                                            ppp_mtu_size=${PPPOE_MTU_SIZE}
+
+    #
+    Log To Console                                 Verify WAN should success on web
+    Wait Until Keyword Succeeds                    5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+    Open Connection And Login To Remote Machine    ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+    ${lan_interface}=                              SSHL.Execute Command    ifconfig | grep -B1 "inet addr:192.168" | awk '$1!="inet" && $1!="--" {print $1}'
+    Wait Until Keyword Succeeds                    5x    1s    Ping Should Succeed    ping_address=${TO_GOOGLE}    network_interface=${lan_interface}
+
+    #Step2: Go to Advanced Features -> URL Filter page do some change
+    Log To Console						\n2.1
+    Go To Url Filter Page       
+
+    # Exclude mode 
+    Change Mode Url Filter  
+    Add New Url To Url Filter               url=${HTTP_URL}
+    Add New Url To Url Filter               url=${HTTPS_URL}
+
+    Run Keyword And Ignore Error            SL.Go To    ${HTTP_URL}
+    SL.Wait Until Element Is Not Visible    ${HTTP_LOGO}    timeout=10s
+    Log To Console                          \nPage has been request time-out
+    Log To Console						\n2.2
+    
+    Sleep									300s
+    Run Keyword And Ignore Error            SL.Go To    ${HTTPS_URL}
+    Log To Console						\n2.2.1
+    SL.Wait Until Element Is Not Visible    ${HTTPS_LOGO}    timeout=30s
+    Log To Console						\n2.2.2
+    Log To Console                          \nPage has been request time-out
+    Log To Console						\n2.3
+
+    Run Keyword And Ignore Error            SL.Go To    ${CHECK_HTTPS_URL}
+    SL.Wait Until Element Is Visible        ${CHECK_HTTPS_LOGO}    timeout=30s
+    Log To Console                          \n page has been finish open
+	Log To Console						\n2.4
+    Run Keyword And Ignore Error            SL.Go To    ${CHECK_HTTP_URL}
+    SL.Wait Until Element Is Visible        ${CHECK_HTTP_LOGO}    timeout=30s
+    Log To Console                          \n page has been finish open
+	Log To Console						\n2.5
+    Log To Console                          \nBlock exclude done
+    SL.Close All Browsers
+
+    # Ixclude mode 
+    Login To Browser                        remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                     url=${LOGIN_URL}
+    ...                                     username=${ONT_WEB_USER}
+    ...                                     password=${ONT_WEB_PASS}
+    ...                                     browser=${BROWSER}
+    Welcome Page Should Be Open
+    #Step2: Go to Advanced Features -> URL Filter page do some change
+    Go To Url Filter Page       
+
+    Change Mode Url Filter                  mode=Include
+    Log To Console                          \n finish change mode   
+
+    Run Keyword And Ignore Error            SL.Go To    ${HTTP_URL}
+    SL.Wait Until Element Is Visible        ${HTTP_LOGO}    timeout=30s
+    Log To Console                          \nPage has been request time-out
+
+    Run Keyword And Ignore Error            SL.Go To    ${HTTPS_URL}
+    SL.Wait Until Element Is Visible        ${HTTPS_LOGO}    timeout=30s
+    Log To Console                          \nPage has been request time-out
+
+    Run Keyword And Ignore Error            SL.Go To    ${CHECK_HTTPS_URL}
+    SL.Wait Until Element Is Not Visible    ${CHECK_HTTPS_LOGO}    timeout=30s
+    Log To Console                          \n page has been finish open
+
+    Run Keyword And Ignore Error            SL.Go To    ${CHECK_HTTP_URL}
+    SL.Wait Until Element Is Not Visible    ${CHECK_HTTP_LOGO}    timeout=30s
+    Log To Console                          \n page has been finish open
+
+    Log To Console                          \nBlock exclude done
+    SL.Close All Browsers
+
+    [Teardown]    Run Keyword And Ignore Error       GW020BRC_FUNC_46_TC_02_Teardown
+
+# *** Test Cases ***
+# GW020BRC_FUNC_46_TC_02
+    # GW020BRC_FUNC_46_TC_02    

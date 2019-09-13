@@ -1,0 +1,87 @@
+*** Settings ***
+Library                                    SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library                                    String                              WITH NAME    STR
+
+*** Variables ***
+
+
+*** Keywords ***
+Open Interface Group Page
+    [Arguments]                            ${interface_grouping_config_url}
+    SL.Go To                               ${interface_grouping_config_url}
+    SL.Wait Until Page Contains            Interface Grouping
+    ...                                    timeout=10s
+    ...                                    error=\nInterface Grouping Page Not Found
+    SL.Page Should Contain                 Interface Grouping
+
+Add Interface Group
+    [Documentation]                        Add Interface Group
+    ...                                    1.group_name:
+    ...                                    2.wan_name:
+    ...                                    3.lan_interface:
+    ...                                    4.name_ssid:
+    [Arguments]                            ${group_name}       ${wan_name}     ${lan_interface}    ${name_ssid}
+    SL.Wait Until Element Is Visible       xpath=//input[@value="Add"]
+    ...                                    timeout=10s
+    ...                                    error=\nButton Add Not Found!
+    SL.Click Button                        xpath=//input[@value="Add"]
+    SL.Wait Until Page Contains            Interface grouping Configuration
+    ...                                    timeout=10s
+    ...                                    error=\nInterface grouping Configuration Not Found
+    SL.Wait Until Element Is Visible       xpath=//input[@name="groupName"]
+    ...                                    timeout=10s
+    ...                                    error=\nGroup Name Does Not Found!
+    SL.Input Text                          xpath=//input[@name="groupName"]          ${group_name}
+    SL.Click Element                       xpath=//option[@value="${wan_name}"]
+    SL.Page Should Contain                 ${name_ssid}
+
+    #Get SSID
+    #ssid string in form , ssid_1: name wifi 1 ,ssid_2:
+    # -6 line 6th at last string
+    # -5 line 5th at last string
+    ${ssid}=                               SL.Get Text                 xpath=//form[@name="choiceForm"]
+    ${ssid_1}=                             STR.Get Line                ${ssid}     -6
+    ${ssid_2}=                             STR.Get Line                ${ssid}     -5
+    Element Should Contain                 xpath=//form[@name="choiceForm"]         ${name_ssid}
+    Run Keyword If                        '${lan_interface}' == '2'           SL.Click Element                    xpath=//input[@value="eth0.0"]
+    ...    ELSE IF                        '${lan_interface}' == '1'           SL.Click Element                    xpath=//input[@value="eth1.0"]
+    ...    ELSE                           Log To Console       Can not Select Lan Interface
+    #Select SSID
+    Run Keyword If                        "${name_ssid}"=="${ssid_1}"                 SL.Click Element         xpath=//input[@value="wl0.1"]
+    ...    ELSE IF                        "${name_ssid}"=="${ssid_2}"                 SL.Click Element         xpath=//input[@value="wl0.3"]
+    ...    ELSE                           Log To Console       Can not Select SSID
+    SL.Click Button                       xpath=//input[@value="Apply/Save"]
+
+Remove Interface Group
+    [Arguments]                           ${group_name}
+    SL.Wait Until Page Contains           Interface Grouping
+    ...                                   timeout=10s
+    ...                                   error=\nInterface Grouping Not Found
+    ${group_name_existed}=                Run Keyword And Return Status   SL.Wait Until Element Is Visible     xpath=//input[@value="${group_name}"]     timeout=10s     error=\nRemove button for group name ${group_name} not found
+    Run Keyword If                        ${group_name_existed}     SL.Click Element    xpath=//input[@value="${group_name}"]
+    Run Keyword If                        ${group_name_existed}     SL.Click Button     xpath=//input[@value="Remove"]
+
+
+Add Interface Group_TC_20_03
+    [Documentation]                        Add Interface Group
+    ...                                    1.group_name:
+    ...                                    2.wan_name:
+    ...                                    3.lan_interface:
+    ...                                    4.name_ssid:
+    [Arguments]                            ${group_name}       ${wan_name}     ${lan_interface}
+    SL.Wait Until Element Is Visible       xpath=//input[@value="Add"]
+    ...                                    timeout=10s
+    ...                                    error=\nButton Add Not Found!
+    SL.Click Button                        xpath=//input[@value="Add"]
+    SL.Wait Until Page Contains            Interface grouping Configuration
+    ...                                    timeout=10s
+    ...                                    error=\nInterface grouping Configuration Not Found
+    SL.Wait Until Element Is Visible       xpath=//input[@name="groupName"]
+    ...                                    timeout=10s
+    ...                                    error=\nGroup Name Does Not Found!
+    SL.Input Text                          xpath=//input[@name="groupName"]          ${group_name}
+    SL.Click Element                       xpath=//option[@value="${wan_name}"]
+    Run Keyword If                        '${lan_interface}' == '2'           SL.Click Element                    xpath=//input[@value="eth0.0"]
+    ...    ELSE IF                        '${lan_interface}' == '1'           SL.Click Element                    xpath=//input[@value="eth1.0"]
+    ...    ELSE                           Log To Console       Can not Select Lan Interface
+    SL.Click Button                       xpath=//input[@value="Apply/Save"]

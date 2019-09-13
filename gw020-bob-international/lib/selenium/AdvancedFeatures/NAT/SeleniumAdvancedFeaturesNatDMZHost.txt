@@ -1,0 +1,27 @@
+*** Settings ***
+Library                                    SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+
+*** Variables ***
+${nat_dmz_url}=     http://192.168.1.1/scdmz.html
+
+*** Keywords ***
+Open NAT DMZ Host Page
+    SL.Go To                               ${nat_dmz_url}
+    SL.Wait Until Page Contains            NAT -- DMZ Host
+    ...                                    timeout=60s
+    ...                                    error=\nVirtual DMZ Host did not show up
+
+Create DMZ Host Server For Iperf3
+    [Arguments]                              ${server_ip_address}
+    SL.Page Should Contain Element           xpath=//input[@name="dmzAddr"]
+    SL.Input Text                            xpath=//input[@name="dmzAddr"]            ${server_ip_address}
+
+    SL.Click Element                         xpath=//input[@value="Save/Apply"]
+    SL.Wait Until Page Contains              DMZ Host IP Address                 timeout=60s
+
+Remove DMZ Host Server
+    SL.Page Should Contain Element           xpath=//input[@name="dmzAddr"]
+    SL.Clear Element Text                    xpath=//input[@name="dmzAddr"]
+
+    SL.Click Element                         xpath=//input[@value="Save/Apply"]
+    SL.Wait Until Page Contains              DMZ Host IP Address                 timeout=60s

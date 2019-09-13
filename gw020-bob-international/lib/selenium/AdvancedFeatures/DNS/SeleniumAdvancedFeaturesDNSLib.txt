@@ -1,0 +1,104 @@
+*** Settings ***
+Library                      SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+
+*** Variables ***
+${dns_config_url}=              http://192.168.1.1/dnsconfg.html
+${dynamic_dns_config_url}=      http://192.168.1.1/ddnsmngr.cmd
+
+*** Keywords ***
+Open Advanced Features DNS Page
+    SL.Go To                      ${dns_config_url}
+    SL.Wait Until Page Contains   DNS -- DNS Server Configuration    timeout=10s    error=\nAdvanced Features DNS Page Not Found
+    SL.Page Should Contain        DNS -- DNS Server Configuration
+
+###
+Open Advanced Features Dynamic DNS Page
+    SL.Go To                      ${dynamic_dns_config_url}
+    SL.Wait Until Page Contains   DNS -- Dynamic DNS    timeout=10s    error=\nAdvanced Features Dynamic DNS Page Not Found
+    SL.Page Should Contain        DNS -- Dynamic DNS
+
+###
+Set WAN DNS Server
+    [Documentation]           Add WAN server to  Select DNS server table
+    ...                       1.wan_name : name wan available
+    [Arguments]                   ${wan_name}=ppp0.4
+    SL.Wait Until Page contains   Select DNS Server Interface from available WAN interfaces:
+    SL.Click Element              xpath=/html/body/blockquote/form/table[1]/tbody/tr/td/input
+    SL.Click Element              xpath=//option[@value="${wan_name}"]
+    SL.Click Element              xpath=//input[@value="<-"]
+
+###
+Select WAN DNS Server
+    [Documentation]           Add WAN server to  Select DNS server table
+    ...                       1.wan_name : name wan available
+    [Arguments]                   ${wan_name}=ppp0.4
+    SL.Wait Until Page contains   Select DNS Server Interface from available WAN interfaces:
+    SL.Click Element              xpath=/html/body/blockquote/form/table[1]/tbody/tr/td/input
+    SL.Click Element              xpath=//option[@value="${wan_name}"]
+    SL.Click Element              xpath=//input[@value="<-"]
+    SL.Click Element              xpath=//option[@value="${wan_name}"]
+
+###
+Save Configuration DNS Server
+    SL.Page Should Contain Element     xpath=//input[@value="Apply/Save"]    error=\n Page should contain Apply/Save\n
+    SL.Click Element                   xpath=//input[@value="Apply/Save"]
+
+###
+Remove WAN DNS Server
+    [Documentation]             Remove WAN server to  Select DNS server table
+    ...                         1.wan_name : name wan available
+    [Arguments]                   ${wan_name}=ppp0.4
+    SL.Wait Until Page contains   Select DNS Server Interface from available WAN interfaces:
+    SL.Click Element              xpath=/html/body/blockquote/form/table[1]/tbody/tr/td/input
+    SL.Click Element              xpath=//option[@value="${wan_name}"]
+    SL.Click Element              xpath=//input[@value="->"]
+
+###
+Set Static WAN DNS Server
+    [Documentation]           Select DNS server from WAN available
+    ...                       1.primary_dns
+    [Arguments]                   ${primary_dns}        ${secondary_dns}
+    SL.Wait Until Page contains   Select DNS Server Interface from available WAN interfaces:
+    SL.Click Element              xpath=/html/body/blockquote/form/table[3]/tbody/tr[1]/td/input
+    SL.Input Text                 xpath=//input[@name="dnsPrimary"]      ${primary_dns}
+    SL.Input Text                 xpath=//input[@name="dnsSecondary"]    ${secondary_dns}
+
+###
+Get Static DNS Server Configuration
+    [Documentation]           Get Static DNS Server Configuration
+    ${static_dns_server}=                   Set Variable     None
+    SL.Wait Until Page contains   Select DNS Server Interface from available WAN interfaces:
+    ${primary_dns}=               SL.Get Value                 xpath=//input[@name="dnsPrimary"]
+    ${secondary_dns}=             SL.Get Value                 xpath=//input[@name="dnsSecondary"]
+    ${static_dns_server}=         Set Variable        ${primary_dns}\n${secondary_dns}
+    [Return]                  ${static_dns_server}
+
+###
+Get Static Primary DNS Server Configuration
+    ${static_primary_dns_server}=                   Set Variable     None
+    SL.Wait Until Page contains   Select DNS Server Interface from available WAN interfaces:
+    ${primary_dns}=               SL.Get Value                 xpath=//input[@name="dnsPrimary"]
+    [Return]                  ${primary_dns}
+
+###
+Verify Popup Invalid IP Address Appear
+    [Documentation]             Verify Popup Invalid IP Address Appear
+    ${message}          Set Variable     None
+    ${message} =        SL.Handle Alert
+    Log To Console      \n${message}
+    Run Keyword If     '${message}' != ''          Log To Console          Popup Appear
+Check Wrong Input DNS Server
+    [Documentation]             Check Wrong Input DNS Server
+    [Arguments]               ${primary_dns}        ${secondary_dns}
+    SL.Wait Until Page contains     Select DNS Server Interface from available WAN interfaces:
+    SL.Click Element              xpath=/html/body/blockquote/form/table[1]/tbody/tr/td/input
+    SL.Wait Until Page contains     Use the following Static DNS IP address:
+    SL.Click Element              xpath=/html/body/blockquote/form/table[3]/tbody/tr[1]/td/input
+    SL.Input Text                 xpath=//input[@name="dnsPrimary"]      ${primary_dns}
+    SL.Input Text                 xpath=//input[@name="dnsSecondary"]    ${secondary_dns}
+    SL.Page Should Contain Element     xpath=//input[@value="Apply/Save"]    error=\n Page should contain Apply/Save\n
+    SL.Click Element                   xpath=//input[@value="Apply/Save"]
+    SeleniumAdvancedFeaturesDNSLib.Verify Popup Invalid IP Address Appear
+
+
+

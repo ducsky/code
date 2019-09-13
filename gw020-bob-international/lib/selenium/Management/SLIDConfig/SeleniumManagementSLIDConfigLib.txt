@@ -1,0 +1,27 @@
+*** Settings ***
+Library                    SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+
+*** Variables ***
+${slid_config_page}        http://192.168.1.1/opticalslid.cmd?action=view
+
+*** Keywords ***
+Go To SLID Config Page
+    [Arguments]                           ${slid_config_page}=http://192.168.1.1/opticalslid.cmd?action=view
+    SL.Go To                              ${slid_config_page}
+    SL.Wait Until Page Contains           SLID Config    timeout=10
+    ...                                   error=\nslid config page does not show up\n
+
+Get Current SLID
+    [Arguments]                           ${slid_mode}=ASCII
+    Run Keyword If                        '${slid_mode}' == 'ASCII'    SL.Select From List By Index        xpath=//select[@id="nhexid"]     0
+    ...    ELSE IF                        '${slid_mode}' == 'HEX'      SL.Select From List By Index        xpath=//select[@id="nhexid"]     1
+    SL.Page Should Contain Element        xpath=//td[@id="viewMode"]
+    ${current_slid}=                      SL.Get Text    xpath=//td[@id="viewMode"]
+    [Return]                              ${current_slid}
+
+Change SLID
+    [Arguments]                           ${new_slid}    ${slid_mode}=ASCII
+    SL.Input Text                         name=nslid     ${new_slid}
+    Run Keyword If                        '${slid_mode}' == 'ASCII'    SL.Select From List By Index        xpath=//select[@id="nhexid"]     0
+    ...    ELSE IF                        '${slid_mode}' == 'HEX'      SL.Select From List By Index        xpath=//select[@id="nhexid"]     1
+    SL.Click Button                       xpath=//*[@value="Apply/Save"]

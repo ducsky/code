@@ -1,0 +1,128 @@
+*** Settings ***
+Library     SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library     AppiumLibrary    run_on_failure=AL.Capture Page Screenshot    WITH NAME    AL
+Resource    selenium/Login/SeleniumLoginLib.txt
+Resource    appium/Settings/AppiumSettingsWifiLib.txt
+Resource    selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessBasicLib.txt
+Resource    selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessSecurityLib.txt
+Resource    selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource    variables/AllVariables.txt
+
+*** Variables ***
+${LOGIN_BUTTON}                              xpath=//button[@class="loginBtn"]
+
+*** Keywords ***
+GW020BRC_FUNC_36_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+
+GW020BRC_FUNC_36
+    SL.Set Selenium Speed                    0.7
+    Set Test Message                         *HTML* <b>GW020BRC_FUNC_36</b>
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+
+    #####Enable Wireles
+    Open Wireless Configure Page             wireless_configure_url=${WIRELESS_CONFIGURE_URL}
+    Log To Console                           \nEnable Wireless
+    Enable Wireless
+    Name SSID                                ssid=${WIFI_SSID_1}
+
+    #####Rename for SSID 2 and SSID 4
+    Log To Console                           \nRename for SSID 2 and SSID 4...
+    Enable Virtual Access Point              ${WIFI_SSID_2}    ${WIFI_SSID_4}
+
+    #Open Wireless Security Page
+    Open Wireless Security Page
+    #Config wireless security for SSID 1    
+    Select SSID                              ${WIFI_SSID_1}
+    Select Network Authentication            Open
+    Sleep									 5s
+    
+    #COnfig wireless security for SSID 2
+    Select SSID                              ${WIFI_SSID_2}
+    Select Network Authentication            WPA2 -PSK
+    Configure WPA2-PSK Mode                  password=${WIFI_PASS}
+    Sleep									 5s
+    
+    #Config wireless security for SSID 4   
+    Select SSID                              ${WIFI_SSID_4}
+    Select Network Authentication            Mixed WPA2/WPA -PSK
+    Configure Mixed WPA2/WPA-PSK Mode        password=${WIFI_PASS}
+    SL.Close Browser
+
+    #Remote UE Conncet to wifi 1  
+    #### Verify UE device connected to WiFi_mode Open
+    Log To Console                          \nVerify UE device connected to WiFi ${WIFI_SSID_1}
+    Open Wifi Picker Activity               remote_server=${APPIUM_REMOTE_SERVER}
+    ...                                     remote_port=${APPIUM_REMOTE_PORT}
+    ...                                     platform=${PLATFORM_NAME}
+    ...                                     version=${PLATFORM_VERSION}
+    ...                                     ue_device_name=${DEVICE_NAME}
+    Turn On Wifi
+    Forget Saved Network And Add Network    wifi_ssid=${WIFI_SSID_1}    wifi_security=None
+    ${ip}=       Get Granted Ip Address
+    Should Contain                          ${ip}           ${ONT_SUBNET}
+    Log To Console                          \nFinish Connect to SSID1
+    AL.Close Application
+
+    #Remote UE Conncet to wifi 2    
+    #### Verify UE device connected to WiFi_mode WPA2 -PSK 
+    Log To Console                          \nVerify UE device connected to WiFi ${WIFI_SSID_2}
+    Open Wifi Picker Activity               remote_server=${APPIUM_REMOTE_SERVER}
+    ...                                     remote_port=${APPIUM_REMOTE_PORT}
+    ...                                     platform=${PLATFORM_NAME}
+    ...                                     version=${PLATFORM_VERSION}
+    ...                                     ue_device_name=${DEVICE_NAME}
+    Turn On Wifi
+    Forget Saved Network And Add Network    wifi_ssid=${WIFI_SSID_2}    wifi_security=WPA/WPA2 PSK    wifi_password=${WIFI_PASS}
+    ${ip}=       Get Granted Ip Address
+    Should Contain                          ${ip}           ${ONT_SUBNET}
+    Log To Console                          \nFinish Connect to SSID2
+    AL.Close Application
+
+    #Remote UE connect to wifi 4
+    #### Verify UE device connected to WiFi_mode Mixed WPA2/WPA -PSK
+    Log To Console                          \nVerify UE device connected to WiFi ${WIFI_SSID_4}
+    Open Wifi Picker Activity               remote_server=${APPIUM_REMOTE_SERVER}
+    ...                                     remote_port=${APPIUM_REMOTE_PORT}
+    ...                                     platform=${PLATFORM_NAME}
+    ...                                     version=${PLATFORM_VERSION}
+    ...                                     ue_device_name=${DEVICE_NAME}
+    Turn On Wifi
+    Forget Saved Network And Add Network    wifi_ssid=${WIFI_SSID_4}    wifi_security=WPA/WPA2 PSK   wifi_password=${WIFI_PASS}
+    ${ip}=       Get Granted Ip Address
+    Should Contain                          ${ip}           ${ONT_SUBNET}
+    Log To Console                          \nFinish Connect to SSID4
+    AL.Close Application
+
+    Log To Console    \nFinish Testcase   
+
+    [Teardown]    Run Keyword And Ignore Error     GW020BRC_FUNC_36_Teardown
+
+# *** Test Cases ***
+# GW020BRC_FUNC_36
+    # GW020BRC_FUNC_36
+    

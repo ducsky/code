@@ -1,0 +1,235 @@
+*** Settings ***
+Library                                    SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library                                    SSHLibrary     WITH NAME    SSHL
+Library                                    String     WITH NAME    STR
+Resource                                   selenium/Login/SeleniumLoginLib.txt
+Resource                                   selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource                                   selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource                                   selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessBasicLib.txt
+Resource                                   selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource                                   ssh/SshLib.txt
+Resource                                   Watching_Youtube_onPC.txt
+Resource                                   variables/AllVariables.txt
+
+*** Variables ***
+${LOGIN_BUTTON}                                xpath=//button[@class="loginBtn"]
+
+*** Keywords ***
+GW020BRC_FUNC_20_TC_01_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+    ###Close SSH
+    SSHL.Close All Connections
+    
+Ping From PC To_TC_20_01
+    [Documentation]         SSH to remote machine to ping to an address. Return True if ping succeed, else return False
+    ...                     Input:
+    ...                     1. ping_address
+    ...                     Return:
+    ...                     1. True or False
+
+    [Arguments]             ${ping_address}     ${nic}        ${mtu_size}=1400
+    ${ping_output}     ${ping_error}      ${ping_rc}=         SSHL.Execute Command    ping ${ping_address} -I ${nic} -c 10 -M do -s ${mtu_size}    return_rc=True    return_stderr=True
+    Log To Console    Ping output: ${ping_output}
+    Log To Console    Ping error: ${ping_error}
+    ${isPingFailed}=        Run Keyword And Return Status     Should Contain    ${ping_output}    100% packet loss
+    Return From Keyword If    '${isPingFailed}' == 'True' or '${ping_rc}' != '0'    False
+    [Return]   True
+
+
+Ping Should Succeed_TC_20_01
+    [Documentation]         Execute ping should be succeed
+    ...                     Input:
+    ...                     1. ping_address
+    ...                     Return:
+    ...                       Pass or Failed
+
+    [Arguments]             ${ping_address}         ${nic}        ${mtu_size}
+
+    ${ping_rc}=             Ping From PC To_TC_20_01    ${ping_address}     ${nic}        ${mtu_size}
+    ${result}=              Run Keyword And Return Status    Should Be True    '${ping_rc}' == 'True'
+    Run Keyword If          '${result}' == 'True'     Log To Console    Ping successfully
+    ...       ELSE          Fail     Ping failed
+
+Ping Should Failed_TC_20_01
+    [Documentation]         Execute ping should be failed
+    ...                     Input:
+    ...                     1. ping_address
+    ...                     Return:
+    ...                       Pass or Failed
+
+    [Arguments]             ${ping_address}       ${nic}        ${mtu_size}
+
+    ${ping_rc}=             Ping From PC To_TC_20_01    ${ping_address}         ${nic}        ${mtu_size}
+    ${result}=              Run Keyword And Return Status    Should Be True    '${ping_rc}' == 'False'
+    Run Keyword If          '${result}' == 'True'     Log To Console    Ping failed is true
+    ...       ELSE          Fail     Ping still success  
+  
+GW020BRC_FUNC_20_TC_01
+    Log To Console                                 MTU WAN PPPOE
+
+    SL.Set Selenium Speed                          0.7
+    Set Test Message                               *HTML* <b>GW020BRC_FUNC_20_TC_01</b>     
+
+    ####STEP 1: Login to WEBGUI and Create PPPoE WAN
+    Log To Console                                 \nStep 1.1: Login to WEBGUI
+    Login To Browser                               remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                            url=${LOGIN_URL}
+    ...                                            username=${ONT_WEB_USER}
+    ...                                            password=${ONT_WEB_PASS}
+    ...                                            browser=${BROWSER}
+    Welcome Page Should Be Open
+
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+    Create New Wan PPPoE                           url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                            network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                                            priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                                            vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    ...                                            ppp_username=${CORRECT_PPP_USERNAME}
+    ...                                            ppp_password=${CORRECT_PPP_PASSWORD}
+    ...                                            routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                            wan_interface=${PPPOE_WAN_INTERFACE}
+
+    ##Step 1.4: Verify WAN should success on web
+    Log To Console                                 \nStep 1.4: Verify WAN should success on web
+    Wait Until Keyword Succeeds                     5x    1s    Wan Connection Should Be Success               vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+    #####Step 1.5:Watching Youtube on PC
+    Log To Console                                 \nStep 1.5:Watching Youtube on PC in ${YOUTUBE_DURATION_PC}s...
+    Watching Youtube on PC                         youtube_url=https://youtu.be/Llw9Q6akRo4      youtube_duration=${YOUTUBE_DURATION_PC}
+    SL.Close All Browsers
+
+    ###STEP 2: Telnet to ONT, check MTU and Ping: “ping 8.8.8.8 -I ${TEST_CONTROL_PC_LAN_NETWORK_INTERFACE} -c 10 -M do -s 1400” from PC
+
+    Log To Console                                 \nStep 2: Telnet to ONT, check MTU and Ping\n
+    Open Connection And Login To Remote Machine    ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+    ...                                            ssh_timeout=20s
+    Log To Console                                 \nStep 2.1: Telnet to ONT
+    SSHL.Write                                     telnet 192.168.1.1
+    Sleep                                          1
+    SSHL.Write                                     admin
+    ${check_output_telnet}=                        SSHL.Read    delay=1s
+    Log To Console                                 Telnet Output: ${check_output_telnet}
+    SSHL.Write                                     ${ONT_PASS_TELNET}
+    Sleep                                          1
+    Log To Console                                 \nStep 2.2: Check MTU WAN PPPoE\n
+    SSHL.Write                                     ifconfig ppp0.2
+    ${check_output_wan}=                           SSHL.Read    delay=20s
+    Log To Console                                 ${check_output_wan}
+    ${mtu_wan}=                                    Run Keyword And Return Status     Should Contain     ${check_output_wan}    MTU:1492
+    Log To Console                                 MTU WAN is 1492
+    Run Keyword If                                 not ${mtu_wan}       Fail    MTU WAN is not 1492. Please check again!
+
+
+    ##Step 2.3: Verify Ping: “ping 8.8.8.8 -I ${TEST_CONTROL_PC_LAN_NETWORK_INTERFACE} -c 10 -M do -s 1400” from PC should success
+    Log To Console                                 \nStep 2.3: Verify “ping 8.8.8.8” should success
+    ${lan_interface}=                              SSHL.Execute Command    ifconfig | grep -B1 "inet addr:192.168" | awk '$1!="inet" && $1!="--" {print $1}'
+    Wait Until Keyword Succeeds                    5x    1s    Ping Should Succeed_TC_20_01    ping_address=${TO_GOOGLE}     nic=${lan_interface}    mtu_size=1400    
+
+    ###STEP 3: Input Invalid MTU WAN value
+    Log To Console                                 \nStep 3.1: Login to WEBGUI
+    Login To Browser                               remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                            url=${LOGIN_URL}
+    ...                                            username=${ONT_WEB_USER}
+    ...                                            password=${ONT_WEB_PASS}
+    ...                                            browser=${BROWSER}
+    Welcome Page Should Be Open
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+    Log To Console                                 \nStep 3.2: Edit MTU WAN to invalid MTU WAN
+    Edit Wan Service                                vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+    # Input invalid MTU WAN the first time
+    Log To Console                                 \nInput invalid MTU WAN the first time\n
+    SL.Wait Until Element Is Visible               xpath=//input[@name="pppMtuSize"]
+    ...                                            timeout=10s
+    ...                                            error=\nMTU WAN Textbox Not Found
+    SL.Input Text                                  xpath=//input[@name="pppMtuSize"]             -1
+    SL.Wait Until Element Is Visible               xpath=//input[@value="Apply/Save"]
+    ...                                            timeout=10s
+    ...                                            error=\nApply/Save Button Not Found
+    SL.Click Element                               xpath=//input[@value="Apply/Save"]
+
+    Popup MTU Wan PPPoE Is Invalid Should Be Visible     mtu_wan=-1
+
+    # Input invalid MTU WAN the second time
+    Log To Console                                 \nInput invalid MTU WAN the second time\n
+    SL.Wait Until Element Is Visible               xpath=//input[@name="pppMtuSize"]
+    ...                                            timeout=10s
+    ...                                            error=\nMTU WAN Textbox Not Found
+    SL.Input Text                                  xpath=//input[@name="pppMtuSize"]             2000
+    SL.Wait Until Element Is Visible               xpath=//input[@value="Apply/Save"]
+    ...                                            timeout=10s
+    ...                                            error=\nApply/Save Button Not Found
+    SL.Click Element                               xpath=//input[@value="Apply/Save"]
+
+    Popup MTU Wan PPPoE Is Invalid Should Be Visible     mtu_wan=2000
+
+    # ##STEP 4: Edit MTU WAN PPPoE to 1400
+
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+    Log To Console                                 \nStep 4.2: Edit MTU WAN PPPoE from 1492 Bytes to 1400 Bytes
+    Edit Wan Service                                vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    # Input MTU WAN
+    SL.Wait Until Element Is Visible               xpath=//input[@name="pppMtuSize"]
+    ...                                            timeout=10s
+    ...                                            error=\nMTU WAN Textbox Not Found
+    SL.Input Text                                  xpath=//input[@name="pppMtuSize"]             1400
+    SL.Wait Until Element Is Visible               xpath=//input[@value="Apply/Save"]
+    ...                                            timeout=10s
+    ...                                            error=\nApply/Save Button Not Found
+    SL.Click Element                               xpath=//input[@value="Apply/Save"]
+
+    ##Step 3.3: Verify WAN should success on web
+    Log To Console                                 \nStep 4.3: Verify WAN PPPoE should success on web
+    Wait Until Keyword Succeeds                     5x    1s        Wan Connection Should Be Success               vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+    ###Step 4.4: Telnet to ONT, check MTU and Ping: “ping 8.8.8.8 –f –l 1400” from PC.
+
+    Log To Console                                 \nStep 2.1: Telnet to ONT
+    SSHL.Write                                     telnet 192.168.1.1
+    Sleep                                          1
+    SSHL.Write                                     admin
+    ${check_output_telnet}=                        SSHL.Read    delay=1s
+    Log To Console                                 Telnet Output: ${check_output_telnet}
+    SSHL.Write                                     ${ONT_PASS_TELNET}
+    Sleep                                          1
+    Log To Console                                 \nStep 4.5: Check MTU WAN PPPoE\n
+    SSHL.Write                                     ifconfig ppp0.2
+    ${check_output_wan}=                           SSHL.Read    delay=20s
+    Log To Console                                 ${check_output_wan}
+    ${mtu_wan}=                                    Run Keyword And Return Status     Should Contain     ${check_output_wan}    MTU:1400
+    Log To Console                                 MTU WAN is 1400
+    Run Keyword If                                 not ${mtu_wan}       Fail    MTU WAN is not 1400. Please check again!
+
+    ##Step 4.6: Verify Ping: “ping 8.8.8.8 -I ${TEST_CONTROL_PC_LAN_NETWORK_INTERFACE} -c 10 -M do -s 1400” from PC should fail
+    Log To Console                                 \nStep 4.6: Verify “ping 8.8.8.8” should fail
+    Wait Until Keyword Succeeds                    5x    1s    Ping Should Failed_TC_20_01    ping_address=${TO_GOOGLE}    nic=${lan_interface}    mtu_size=1400   
+    SSHL.Close All Connections
+
+    [Teardown]    Run Keyword And Ignore Error     GW020BRC_FUNC_20_TC_01_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_20_TC_01
+    # GW020BRC_FUNC_20_TC_01                       
+
+

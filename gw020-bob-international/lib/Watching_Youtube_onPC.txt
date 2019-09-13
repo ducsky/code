@@ -1,0 +1,13 @@
+*** Settings ***
+Library                                                 SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+
+*** Variables ***
+${YOUTUBE_LOGO}                                         //a[@id='logo']/div
+
+*** Keywords ***
+Watching Youtube on PC
+    [Arguments]                                          ${youtube_url}=https://youtu.be/Llw9Q6akRo4     ${youtube_duration}=120
+    Log To Console                                       \nWatching Youtube on PC in ${youtube_duration}s...
+    SL.Go To                                             url=${youtube_url}
+    SL.Wait Until Element Is Visible                     ${YOUTUBE_LOGO}    timeout=10s
+    Sleep                                                ${youtube_duration}

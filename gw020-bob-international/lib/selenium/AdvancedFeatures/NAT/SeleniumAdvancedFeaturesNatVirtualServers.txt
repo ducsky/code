@@ -1,0 +1,60 @@
+*** Settings ***
+Library                                    SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+*** Variables ***
+${virtual_servers_url}=     http://192.168.1.1/scvrtsrv.cmd?action=view
+
+*** Keywords ***
+Open Virtual Servers Group Page
+    SL.Go To                               ${virtual_servers_url}
+    SL.Wait Until Page Contains            NAT -- Virtual Servers Setup
+    ...                                    timeout=60s
+    ...                                    error=\nVirtual Servers Setup did not show up
+
+Create Virtual Server For Iperf3
+    [Arguments]                              ${server_ip_address}     ${port_start}    ${port_end}    ${interface_name}
+    :FOR                                     ${i}     IN RANGE    2    9999
+    \    ${element_is_visible}=              Run Keyword And Return Status       SL.Element Should Be Visible    xpath=//table/tbody/tr[${i}]
+    \    Exit For Loop If                    not ${element_is_visible}
+    \    ${contain_iperf3_virtual_server}=   Run Keyword And Return Status       SL.Element Should Be Visible    xpath=//table/tbody/tr[${i}]/td[contains(text(),"iperf3")]
+    \    Run Keyword If                      ${contain_iperf3_virtual_server}    Remove Iperf3 Virtual Server    ${i}
+    \    Exit For Loop If                    ${contain_iperf3_virtual_server}
+    SL.Page Should Contain Element           xpath=//input[@value="Add"]
+    SL.Click Element                         xpath=//input[@value="Add"]
+    SL.Wait Until Page Contains              NAT -- Virtual Servers     timeout=60s
+    SL.Page Should Contain Element           xpath=//select[@name="dstWanIf"]
+    SL.Select From List By Value             xpath=//select[@name="dstWanIf"]     ${interface_name}
+    SL.Page Should Contain Element           xpath=//table/tbody/tr[4]/td[1]/input[@name="radiosrv"]
+    SL.Click Element                         xpath=//table/tbody/tr[4]/td[1]/input[@name="radiosrv"]
+    SL.Page Should Contain Element           xpath=//table/tbody/tr[4]/td[2]/input[@name="cusSrvName"]
+    SL.Input Text                            xpath=//table/tbody/tr[4]/td[2]/input[@name="cusSrvName"]    iperf3
+    SL.Page Should Contain Element           xpath=//input[@name="sIp"]
+    SL.Input Text                            xpath=//input[@name="sIp"]    ${server_ip_address}
+    SL.Input Text                            xpath=//input[@name="eStart"]     ${port_start}
+    SL.Input Text                            xpath=//input[@name="eEnd"]       ${port_end}
+    SL.Click Element                         xpath=//input[@value="Apply/Save"] 
+    SL.Wait Until Page Contains              iperf3    timeout=60s
+
+Remove Iperf3 Virtual Server
+    [Arguments]                              ${index}
+    SL.Select Checkbox                       xpath=//table/tbody/tr[${index}]/td/input[@name="rml"]
+    Sleep                                    2s
+    SL.Checkbox Should Be Selected           xpath=//table/tbody/tr[${index}]/td/input[@name="rml"]
+    SL.Page Should Contain Element           xpath=//input[@value="Remove"]
+    SL.Click Element                         xpath=//input[@value="Remove"]
+    SL.Wait Until Page Contains              NAT -- Virtual Servers     timeout=60s
+
+
+Check Virtual Server Exist
+    [Documentation]                 Find virtual on table.
+    ...                             Input:
+    ...                             1. virtual_server                    virtual server name
+    [Arguments]                     ${virtual_server}
+    ${isExist}=      Set Variable       False
+    :FOR    ${i}    IN RANGE    1    50
+    \     ${element_visible}=          Run Keyword And Return Status       SL.Element Should Be Visible     xpath=//table[@class='wholetable']/tbody/tr[${i}]/td[1]
+    \     Run Keyword If        "${element_visible}" == "False"         Exit for loop
+    \     ${server_name}=        SL.Get Text                     xpath=//table[@class='wholetable']/tbody/tr[${i}]/td[1]
+    \     ${isExist}=           Set Variable If    '${virtual_server}' == '${server_name}'     True
+    \     Exit For Loop If      '${virtual_server}' == '${server_name}'
+
+    [Return]                    ${isExist}

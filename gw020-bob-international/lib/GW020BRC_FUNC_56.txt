@@ -1,0 +1,47 @@
+*** Settings ***
+Library              SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Resource             selenium/Login/SeleniumLoginLib.txt
+Resource             selenium/DeviceInfo/Summary/SeleniumDeviceInfoSummaryLib.txt
+Resource             selenium/Management/SoftwareUpgrade/SeleniumManagementSoftwareUpgradeLib.txt
+Resource             process/ProcessUpgradeFirmwareLib.txt
+Resource             ssh/SshLib.txt
+Resource             variables/AllVariables.txt
+
+*** Variables ***
+
+*** Keywords ***
+GW020BRC_FUNC_56_Teardown
+    ###Teardown
+    SL.Delete All Cookies
+    SL.Close All Browsers
+
+GW020BRC_FUNC_56
+    [Arguments]                             ${firmwareUrl}    ${username}    ${password}
+    Log To Console                          UPDATE FIRMWARE VIA WEB
+    Set Test Message                        *HTML* <b>GW020BRC_FUNC_56</b>
+
+    ###Login To Browser
+    Log To Console                          \nStep 1.1: Login to WEBGUI
+    Login To Browser                        remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                     url=${LOGIN_URL}
+    ...                                     username=${ONT_WEB_USER}
+    ...                                     password=${ONT_WEB_PASS}
+    ...                                     browser=chrome
+    Welcome Page Should Be Open
+
+    Log To Console                          \nStep 1.2: Download Firmware from Repo\n
+    Download Firmware from Repo             firmwareUrl=${firmwareUrl}
+    ...                                     username=${username}
+    ...                                     password=${password}
+    Open Firmware Upgrade Page
+    Log To Console                          \nStep 1.3: Upgrade Firmware From PC To ONT\n
+    Upgrade Firmware From PC To ONT         firmware_path=FIRMWARE_NAME
+    Log To Console                          \nWaiting to update Firmware...\n
+    Sleep                                   90s
+
+    [Teardown]    Run Keyword And Ignore Error    GW020BRC_FUNC_56_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_56
+    # GW020BRC_FUNC_56                        firmwareUrl=http://rdrepo.vnpt-technology.vn/repository/ONT020/ONT020/G2.16A.06RTMP1_180831_1709
+    # ...                                     username=anonymous-user    password=123

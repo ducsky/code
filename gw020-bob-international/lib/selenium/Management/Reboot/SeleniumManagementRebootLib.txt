@@ -1,0 +1,29 @@
+*** Settings ***
+Library                                      SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+
+*** Variables ***                            
+
+*** Keywords ***
+Reboot Device Via Web GUI
+    [Arguments]                              ${reboot_url}=http://192.168.1.1/resetrouter.html
+    SL.Go To                                 ${reboot_url}
+    SL.Wait Until Page Contains              Click the button below to reboot the router
+    ...                                      timeout=20s
+    ...                                      error=\nReboot Page Does Not Show Up!
+    SL.Page Should Contain                   Click the button below to reboot the router
+    SL.Wait Until Element Is Visible         xpath=//*[@value="Reboot"]
+    ...                                      timeout=20s
+    ...                                      error=\nReboot Button Not Found!
+    SL.Click Button                          xpath=//*[@value="Reboot"]
+    Run Keyword And Ignore Error             SL.Wait Until Element Is Visible    xpath=//button[@class="loginBtn"]
+    ...                                      timeout=120s
+    ...                                      error=\nLogin Page Does Not Found!
+
+Reboot Device Via Web GUI Without Waiting
+    [Arguments]                              ${reboot_url}=http://192.168.1.1/resetrouter.html
+    [Documentation]                          Reboot device without waiting for device reboot successfully
+    SL.Go To                                 ${reboot_url}
+    SL.Wait Until Page Contains              Click the button below to reboot the router   timeout=10s   error=\nReboot Page Does Not Show Up!
+    SL.Page Should Contain                   Click the button below to reboot the router
+    SL.Wait Until Element Is Visible         xpath=//*[@value="Reboot"]    timeout=10s     error=\nReboot Button Not Found!
+    SL.Click Button                          xpath=//*[@value="Reboot"]

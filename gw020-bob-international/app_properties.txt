@@ -1,0 +1,86 @@
+GNMS
+{
+  "platformName": "Android",
+  "platformVersion": "6.0",
+  "deviceName": "025241111137065",
+  "appPackage": "gnms.vnpt_technology.ssdc",
+  "appActivity": "gnms.vnpt_technology.ssdc.MainActivity"
+}
+
+WIFI
+
+{
+  "platformName": "Android",
+  "platformVersion": "6.0",
+  "deviceName": "025241711200139",
+  "appPackage": "com.android.settings",
+  "appActivity": "com.android.settings.wifi.WifiPickerActivity"
+}
+
+CHROME
+
+{
+  "platformName": "Android",
+  "platformVersion": "6.0",
+  "deviceName": "025241111137065",
+  "appPackage": "com.android.chrome",
+  "appActivity": "com.google.android.apps.chrome.Main"
+}
+
+SPEEDTEST
+
+{
+  "platformName": "Android",
+  "platformVersion": "6.0",
+  "deviceName": "Vivas",
+  "appPackage": "org.zwanoo.android.speedtest",
+  "appActivity": "com.ookla.mobile4.screens.main.MainActivity",
+  "newCommandTimeout": "3600",
+  "noReset": true
+}
+
+YOUTUBE
+
+{
+  "platformName": "Android",
+  "platformVersion": "6.0",
+  "deviceName": "025241611139271",
+  "appPackage": "com.google.android.youtube",
+  "appActivity": "com.google.android.apps.youtube.app.WatchWhileActivity"
+}
+
+
+#************Chi khi nào record trên app moi can Disconnect lai Card Mediatek, con dau default luon bat card nay lên********************
+
+
+PING FOR ANDROID
+
+{
+  "platformName": "Android",
+  "platformVersion": "6.0",
+  "deviceName": "025241611139271",
+  "appPackage": "com.androidping.app",
+  "appActivity": "com.androidping.app.MainActivity",
+  "unicodeKeyboard": true
+}
+
+PINK PING
+{
+  "platformName": "Android",
+  "platformVersion": "6.0",
+  "deviceName": "025241611139271",
+  "appPackage": "eu.xiix.pinkping.app",
+  "appActivity": "eu.xiix.pinkping.app.MainActivity",
+  "unicodeKeyboard": true
+}
+
+PING&TRACE
+{
+  "platformName": "Android",
+  "platformVersion": "6.0",
+  "deviceName": "025241611139271",
+  "appPackage": "com.studionivadev.pingtrace",
+  "appActivity": "com.studionivadev.pingtrace.ActivityMain",
+  "unicodeKeyboard": true
+}
+

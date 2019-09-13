@@ -1,0 +1,166 @@
+*** Settings ***
+Library                                 SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library                                 String              WITH NAME     STR
+
+*** Variables ***
+${mac_filter_url}                       http://192.168.1.1/wlmacflt.cmd?action=view
+
+*** Keywords ***
+Open Mac Filter Page
+    [Arguments]                         ${mac_filter_url}=http://192.168.1.1/wlmacflt.cmd?action=view
+    SL.Go To                            ${mac_filter_url}
+    SL.Wait Until Page Contains         Wireless -- MAC Filter
+    ...                                 timeout=10s
+    ...                                 error=\nMac Filter Page Does Not Show Up
+    SL.Page Should Contain              Wireless -- MAC Filter
+
+Select SSID For Mac Filter
+    [Arguments]                         ${ssid}
+    SL.Wait Until Element Is Visible    xpath=//option[contains(text(), "${ssid}")]
+    ...                                 timeout=15s
+    ...                                 error=\nSelect SSID Dropdown Does Not Show Up
+    ${ssid_value}=      SL.Get Value    xpath=//option[contains(text(), "${ssid}")]
+    SL.Select From List By Value        xpath=//select[@name="wlSsidIdx"]      ${ssid_value}
+    Sleep                               2s
+    Log To Console                      Select SSID ${ssid} to Config Mac Filter
+
+Add MAC Address
+    [Arguments]                         ${mac_address}
+    ${mac_address}=                     STR.Convert To Uppercase    ${mac_address}
+    SL.Wait Until Element Is Visible    xpath=//input[@value="Add"]
+    ...                                 timeout=10s
+    ...                                 error=\nAdd Button Not Found
+    SL.Click Element                    xpath=//input[@value="Add"]
+    SL.Wait Until Page Contains         Wireless -- MAC Filter
+    ...                                 timeout=10s
+    ...                                 error=\nMac Filter Page Does Not Show Up
+    SL.Page Should Contain              Wireless -- MAC Filter
+    Log To Console                      \nInput MAC Address Filter\n
+    SL.Page Should Contain Element      xpath=//input[@name="wlFltMacAddr"]
+    SL.Input Text                       xpath=//input[@name="wlFltMacAddr"]       ${mac_address}
+    SL.Page Should Contain Element      xpath=//input[@value="Apply/Save"]
+    SL.Click Element                    xpath=//input[@value="Apply/Save"]
+    SL.Wait Until Page Contains         ${mac_address}
+    ...                                 timeout=10s
+    ...                                 error=\nMac Filter Page Does Not Show Up
+
+Remove MAC Address
+    [Arguments]                         ${index}
+    SL.Select Checkbox                  xpath=//table/tbody/tr[${index}]/td/input[@name="rml"]
+    Sleep                               2s
+    SL.Checkbox Should Be Selected      xpath=//table/tbody/tr[${index}]/td/input[@name="rml"]
+    SL.Page Should Contain Element      xpath=//input[@value="Remove"]
+    SL.Click Element                    xpath=//input[@value="Remove"]
+    SL.Wait Until Page Contains         Wireless -- MAC Filter     timeout=60s
+
+Config Mac Filter Mode
+    [Arguments]                         ${mode}=Disabled
+    Run Keyword If                      '${mode}' == 'Disabled'    SL.Click Element    xpath=//tr/td[2]/input[@name="wlFltMacMode"]
+    ...    ELSE IF                      '${mode}' == 'Allow'       SL.Click Element    xpath=//tr/td[3]/input[@name="wlFltMacMode"]
+    ...    ELSE IF                      '${mode}' == 'Deny'        SL.Click Element    xpath=//tr/td[4]/input[@name="wlFltMacMode"]
+    ...    ELSE                         Log To Console    Please input: Disabled, Allow and Deny
+    SL.Wait Until Page Contains         Wireless -- MAC Filter
+    ...                                 timeout=10s
+    ...                                 error=\nMac Filter Page Does Not Show Up
+
+Config Mac Filter Mode Disabled
+    [Arguments]                              ${value_ssid_name}         ${MAC_Address}
+    :FOR                                     ${i}     IN RANGE    2    9999
+    \    ${contain_MAC_Address}=             Run Keyword And Return Status       SL.Element Should Be Visible    xpath=//table/tbody/tr[${i}]
+    \    Run Keyword If                      ${contain_MAC_Address}              Remove MAC Address              ${i}
+    \    Exit For Loop If                    not ${contain_MAC_Address}
+
+    SL.Page Should Contain Element           xpath=//select[@name="wlSsidIdx"]
+    SL.Select From List By Value             xpath=//select[@name="wlSsidIdx"]          ${value_ssid_name}
+    SL.Wait Until Element Is Visible         xpath=//input[@name="wlFltMacMode"]
+    ...                                      timeout=10s
+    ...                                      error=\nMAC Restrict Mode Select Box Not Found
+    SL.Click Element                         xpath=//input[@name="wlFltMacMode"]
+    Sleep                                    5s
+    SL.Wait Until Element Is Visible         xpath=//input[@value="Add"]
+    ...                                      timeout=10s
+    ...                                      error=\nAdd Button Not Found
+    SL.Click Element                         xpath=//input[@value="Add"]
+    SL.Wait Until Page Contains              Wireless -- MAC Filter
+    ...                                      timeout=10s
+    ...                                      error=\nMac Filter Page Does Not Show Up
+    SL.Page Should Contain                   Wireless -- MAC Filter
+    Log To Console                           \nInput MAC Address Filter\n
+    SL.Page Should Contain Element           xpath=//input[@name="wlFltMacAddr"]
+    SL.Input Text                            xpath=//input[@name="wlFltMacAddr"]       ${MAC_Address}
+    SL.Page Should Contain Element           xpath=//input[@value="Apply/Save"]
+    SL.Click Element                         xpath=//input[@value="Apply/Save"]
+    Sleep                                    5s
+    :FOR                                     ${i}     IN RANGE    2    9999
+    \    ${mac_is_visible}=                  Run Keyword And Return Status       SL.Element Should Be Visible    xpath=//table/tbody/tr[${i}]/td[contains(text(),"${MAC_Address}")]
+    \    Exit For Loop If                    not ${mac_is_visible}
+    Log To Console                           \nCheck MAC Address has been input successfull\n
+    SL.Close All Browsers
+
+Config Mac Filter Mode Allow
+    [Arguments]                              ${value_ssid_name}         ${MAC_Address}
+    :FOR                                     ${i}     IN RANGE    2    9999
+    \    ${contain_MAC_Address}=             Run Keyword And Return Status       SL.Element Should Be Visible    xpath=//table/tbody/tr[${i}]
+    \    Run Keyword If                      ${contain_MAC_Address}              Remove MAC Address              ${i}
+    \    Exit For Loop If                    not ${contain_MAC_Address}
+
+    SL.Page Should Contain Element           xpath=//select[@name="wlSsidIdx"]
+    SL.Select From List By Value             xpath=//select[@name="wlSsidIdx"]          ${value_ssid_name}
+    SL.Wait Until Element Is Visible         xpath=//tr/td[3]/input[@name="wlFltMacMode"]
+    ...                                      timeout=10s
+    ...                                      error=\nMAC Restrict Mode Select Box Not Found
+    SL.Click Element                         xpath=//tr/td[3]/input[@name="wlFltMacMode"]
+    Sleep                                    5s
+    SL.Wait Until Element Is Visible         xpath=//input[@value="Add"]
+    ...                                      timeout=10s
+    ...                                      error=\nAdd Button Not Found
+    SL.Click Element                         xpath=//input[@value="Add"]
+    SL.Wait Until Page Contains              Wireless -- MAC Filter
+    ...                                      timeout=10s
+    ...                                      error=\nMac Filter Page Does Not Show Up
+    SL.Page Should Contain                   Wireless -- MAC Filter
+    Log To Console                           \nInput MAC Address Filter\n
+    SL.Page Should Contain Element           xpath=//input[@name="wlFltMacAddr"]
+    SL.Input Text                            xpath=//input[@name="wlFltMacAddr"]       ${MAC_Address}
+    SL.Page Should Contain Element           xpath=//input[@value="Apply/Save"]
+    SL.Click Element                         xpath=//input[@value="Apply/Save"]
+    Sleep                                    5s
+    :FOR                                     ${i}     IN RANGE    2    9999
+    \    ${mac_is_visible}=                  Run Keyword And Return Status       SL.Element Should Be Visible    xpath=//table/tbody/tr[${i}]/td[contains(text(),"${MAC_Address}")]
+    \    Exit For Loop If                    not ${mac_is_visible}
+    Log To Console                           \nCheck MAC Address has been input successfull\n
+    SL.Close All Browsers
+
+Config Mac Filter Mode Deny
+    [Arguments]                              ${value_ssid_name}         ${MAC_Address}
+    :FOR                                     ${i}     IN RANGE    2    9999
+    \    ${contain_MAC_Address}=             Run Keyword And Return Status       SL.Element Should Be Visible    xpath=//table/tbody/tr[${i}]
+    \    Run Keyword If                      ${contain_MAC_Address}              Remove MAC Address              ${i}
+    \    Exit For Loop If                    not ${contain_MAC_Address}
+
+    SL.Page Should Contain Element           xpath=//select[@name="wlSsidIdx"]
+    SL.Select From List By Value             xpath=//select[@name="wlSsidIdx"]          ${value_ssid_name}
+    SL.Wait Until Element Is Visible         xpath=//tr/td[4]/input[@name="wlFltMacMode"]
+    ...                                      timeout=10s
+    ...                                      error=\nMAC Restrict Mode Select Box Not Found
+    SL.Click Element                         xpath=//tr/td[4]/input[@name="wlFltMacMode"]
+    Sleep                                    5s
+    SL.Wait Until Element Is Visible         xpath=//input[@value="Add"]
+    ...                                      timeout=10s
+    ...                                      error=\nAdd Button Not Found
+    SL.Click Element                         xpath=//input[@value="Add"]
+    SL.Wait Until Page Contains              Wireless -- MAC Filter
+    ...                                      timeout=10s
+    ...                                      error=\nMac Filter Page Does Not Show Up
+    SL.Page Should Contain                   Wireless -- MAC Filter
+    Log To Console                           \nInput MAC Address Filter\n
+    SL.Page Should Contain Element           xpath=//input[@name="wlFltMacAddr"]
+    SL.Input Text                            xpath=//input[@name="wlFltMacAddr"]       ${MAC_Address}
+    SL.Page Should Contain Element           xpath=//input[@value="Apply/Save"]
+    SL.Click Element                         xpath=//input[@value="Apply/Save"]
+    Sleep                                    5s
+    :FOR                                     ${i}     IN RANGE    2    9999
+    \    ${mac_is_visible}=                  Run Keyword And Return Status       SL.Element Should Be Visible    xpath=//table/tbody/tr[${i}]/td[contains(text(),"${MAC_Address}")]
+    \    Exit For Loop If                    not ${mac_is_visible}
+    Log To Console                           \nCheck MAC Address has been input successfull\n
+    SL.Close All Browsers

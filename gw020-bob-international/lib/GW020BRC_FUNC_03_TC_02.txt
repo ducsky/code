@@ -1,0 +1,253 @@
+*** Settings ***
+Library                                      SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Resource                                     selenium/Login/SeleniumLoginLib.txt
+Resource                                     selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource                                     selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource                                     selenium/Login/SeleniumLoginWithOperatorUserLib.txt
+Resource                                     selenium/AdvancedFeatures/Routing/SeleniumAdvancedFeaturesRoutingStaticRoute.txt
+Resource                                     selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource                                     ssh/SshLib.txt
+Resource                                     variables/AllVariables.txt
+
+*** Variables ***
+${LOGIN_BUTTON}                              xpath=//button[@class="loginBtn"]
+${destination_ip}                            10.84.107.0/24
+${gateway_ip}                                10.84.22.1
+
+*** Keywords ***
+GW020BRC_FUNC_03_TC_02_Teardown
+    ###Teardown
+    ###Sleep 180 to wait user/pass: Disable
+    Sleep                                    180s
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+    ######Factory Reset Via Web GUI ONT 02
+    ${wan_ip_address}=                       Get Variable Value    ${wan_ip_address}
+    ${CLIENT_IP}=                            Get Variable Value    ${CLIENT_IP}
+    Login To Browser                         remote_selenium_server_tmp=${CLIENT_IP}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    ${logout}=                               Run Keyword And Return Status    SL.Page Should Contain    operator is working now
+    Run Keyword If                           ${logout} == True    Logout And Login As Another User    ip_address_logout=${wan_ip_address}
+    ...                                                                                               ip_address_login=192.168.1.1
+    ...                                                                                               user_logout=operator
+    ...                                                                                               user_login=admin
+    ...                                                                                               default_password=oper@tor
+    ...                                                                                               new_password=${ONT_WEB_PASS}
+
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+
+GW020BRC_FUNC_03_TC_02
+    [Arguments]                              ${CLIENT_IP}		${gateway_ip}=10.84.22.1
+    SL.Set Selenium Speed                    0.7
+    Set Test Message                         *HTML* <b>GW020BRC_FUNC_03_TC_02</b>
+    Log To Console                           Login by Operator account via WAN
+    Set Suite Variable                       ${CLIENT_IP}
+    ###Check IP WAN 4000 is connected on ONT 2
+    Log To Console                          \nCheck IP WAN 4000 is connected on ONT 2\n
+    Login To Browser                        remote_selenium_server_tmp=${CLIENT_IP}
+    ...                                     url=${LOGIN_URL}
+    ...                                     username=${ONT_WEB_USER}
+    ...                                     password=${ONT_WEB_PASS}
+    ...                                     browser=${BROWSER}
+    Welcome Page Should Be Open
+    Wait Until Keyword Succeeds             5x    1s    Wan Connection Should Be Success    vlan_id=4000
+    ${wan_ip_address}=                      Get Wan Ip Address    vlan_id=4000
+    Set Suite Variable                      ${wan_ip_address}
+    Logout Page                             logout_url=${LOGIN_URL}
+    ...                                     user=admin
+    SL.Close All Browsers
+
+    ###Check IP WAN 4000 is connected on ONT 1
+    Log To Console                          \nCheck IP WAN 4000 is connected on ONT 1\n
+    Login To Browser                        remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                     url=${LOGIN_URL}
+    ...                                     username=${ONT_WEB_USER}
+    ...                                     password=${ONT_WEB_PASS}
+    ...                                     browser=${BROWSER}
+    Welcome Page Should Be Open
+    Wait Until Keyword Succeeds             5x    1s    Wan Connection Should Be Success    vlan_id=4000
+
+    #####Create IPoE WAN on ONT1
+    Log To Console                           \nCreate IPoE WAN with Dynamic IP that correct VLAN Priority and VLAN ID on ONT1\n
+    Open Network Settings Wan Page
+    Create New Wan IPoE                      url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                      network_protocol=${IPOE_NETWORK_PROTOCOL}
+    ...                                      priority=${CORRECT_IPOE_VLAN_PRIORITY}
+    ...                                      vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+
+    ############Verify IPoE WAN with Dynamic IP should success on web
+    Log To Console                           \nVerify IPoE WAN with Dynamic IP should success on web\n
+    Wait Until Keyword Succeeds              5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+    ${wan_interface}=                        Get Wan Interface    vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+    Set Suite Variable                       ${wan_interface}
+
+    ###Add Static Route
+    Open Static Route Page
+    Create Static Route                     destination_ip=${destination_ip}
+    ...                                     interface=${wan_interface}
+    ...                                     gateway_ip=${gateway_ip}
+
+    ###Logout Admin account
+    Log To Console                          \nLogout from Admin account
+    Logout Page                             logout_url=${LOGIN_URL}
+    ...                                     user=admin
+    SL.Delete All Cookies
+    SL.Close All Browsers
+    Sleep                                   2s
+
+    ####Step 3: Login to PC2's Browser with operator account
+    Log To Console                          \nLogin with Operator account\n
+    Login To Browser With Operator User     remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                     username=operator
+    ...                                     password=oper@tor
+    ...                                     nms_ip_tmp=${wan_ip_address}
+
+    SL.Wait Until Page Contains             Access Control -- Passwords          timeout=10s       error=\nChange Password Page Does Not Show Up!
+    SL.Page Should Contain                  Access Control -- Passwords
+    ##Change Password
+    Log To Console                          \nChange password from Operator to ${ONT_WEB_PASS}
+    Change Password                         inUserName=operator
+    ...                                     old_pass=oper@tor
+    ...                                     new_pass=${ONT_WEB_PASS}
+    ...                                     cfm_new_pass=${ONT_WEB_PASS}
+    #Check login
+    SL.Wait Until Element Is Visible        ${LOGIN_BUTTON}
+    ...                                     timeout=20s
+    ...                                     error=\nLogin Page Does Not Found!
+    Input Username                          operator
+    Input User Password                     ${ONT_WEB_PASS}
+    Submit Credentials
+    Welcome Page Should Be Open
+    Logout Page                             logout_url=http://${wan_ip_address}
+    ...                                     user=operator
+    #The first time
+    SL.Wait Until Element Is Visible        ${LOGIN_BUTTON}
+    ...                                     timeout=20s
+    ...                                     error=\nLogin Page Does Not Found!
+    #Relogin to Browser with wrong password
+    Input Username                          operator
+    Input User Password                     ttcn@88CN
+    Submit Credentials
+    SL.Page Should Contain                  The username or password is incorrect
+    #The second time
+    SL.Wait Until Element Is Visible        ${LOGIN_BUTTON}
+    ...                                     timeout=20s
+    ...                                     error=\nLogin Page Does Not Found!
+    Input Username                          operator
+    Input User Password                     oper@tor
+    Submit Credentials
+    SL.Page Should Contain                  The username or password is incorrect
+    #The third time
+    SL.Wait Until Element Is Visible        ${LOGIN_BUTTON}
+    ...                                     timeout=20s
+    ...                                     error=\nLogin Page Does Not Found!
+    Input Username                          operator
+    Input User Password                     operator
+    Submit Credentials
+    SL.Page Should Contain                  The username or password is incorrect
+    SL.Element Should Be Disabled           xpath=//input[@id="userName"]
+    SL.Element Should Be Disabled           xpath=//input[@id="pcPassword"]
+    Sleep                                   180
+    SL.Element Should Be Enabled            xpath=//input[@id="userName"]
+    SL.Element Should Be Enabled            xpath=//input[@id="pcPassword"]
+    Input Username                          operator
+    Input User Password                     ${ONT_WEB_PASS}
+    Submit Credentials
+    Welcome Page Should Be Open
+
+    ###Go To TR-069 Page
+    Log To Console                           \nGo To TR-069 Page
+    SL.Go To                                 url=http://${wan_ip_address}/tr69confg.html
+    SL.Wait Until Page Contains              TR-069 Client Configuration
+    ...                                      timeout=10s
+    ...                                      error=\nTR-069 Client Configuration Page Not Found
+    SL.Page Should Contain                   TR-069 Client Configuration
+
+    ###Check UPnP function
+    Log To Console                           \nCheck UPnP function
+    SL.Go To                                 url=http://${wan_ip_address}/upnpcfg.html
+    SL.Wait Until Page Contains              UPnP Configuration
+    ...                                      timeout=10s
+    ...                                      error=\nUPnP Configuration Page Not Found
+    SL.Page Should Contain                   UPnP Configuration
+
+    # Enable UPnP Checkbox
+    Log To Console                          \nEnable UPnP Checkbox
+    SL.Wait Until Element Is Visible         xpath=//input[@name="chkUpnp"]
+    ...                                      timeout=10s
+    ...                                      error=\nUPnP Checkbox Not Found
+    SL.Select Checkbox                       xpath=//input[@name="chkUpnp"]
+
+    ##Click Apply/Save
+    SL.Wait Until Element Is Visible        xpath=//input[@value="Apply/Save"]
+    ...                                     timeout=10s
+    ...                                     error=\nApply/Save Button Not Found
+    SL.Click Element                        xpath=//input[@value="Apply/Save"]
+
+
+    ###Disable UPnP Checkbox
+    Log To Console                          \nDisable UPnP Checkbox
+    SL.Wait Until Element Is Visible         xpath=//input[@name="chkUpnp"]
+    ...                                      timeout=10s
+    ...                                      error=\nUPnP Checkbox Not Found
+    SL.Unselect Checkbox                     xpath=//input[@name="chkUpnp"]
+
+    ##Click Apply/Save
+    SL.Wait Until Element Is Visible        xpath=//input[@value="Apply/Save"]
+    ...                                     timeout=10s
+    ...                                     error=\nApply/Save Button Not Found
+    SL.Click Element                        xpath=//input[@value="Apply/Save"]
+
+    ####Logout From Operator User
+    Log To Console                          \nLogout From Operator User
+    Logout Page                             logout_url=http://${wan_ip_address}
+    ...                                     user=operator
+
+    ####Login From admin User
+    Log To Console                          \nLogin From admin User via WAN IP (Can not Login with Admin account from WAN)
+    Login To Browser With Operator User     remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                     username=${ONT_WEB_USER}
+    ...                                     password=${ONT_WEB_PASS}
+    ...                                     nms_ip_tmp=${wan_ip_address}
+    SL.Page Should Contain                  The username or password is incorrect
+    SL.Element Should Be Visible            ${LOGIN_BUTTON}
+    SL.Close All Browsers
+
+    # ###Teardown
+    [Teardown]                              Run Keyword And Ignore Error    GW020BRC_FUNC_03_TC_02_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_03_TC_02
+    # Log To Console                           \nThuc hien Testcase GW020BRC_FUNC_03_TC_02\n
+    # GW020BRC_FUNC_03_TC_02                   CLIENT_IP=10.2.14.191

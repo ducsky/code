@@ -1,0 +1,122 @@
+*** Settings ***
+Library                                        SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL 
+Resource                                       selenium/Login/SeleniumLoginLib.txt
+Resource                                       selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource                                       selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource                                       selenium/Management/Reboot/SeleniumManagementRebootLib.txt
+Resource                                       selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource                                       variables/AllVariables.txt
+
+*** Variables ***
+${LOGIN_BUTTON}                                xpath=//button[@class="loginBtn"]
+${TR069_LINK}                                  http://192.168.1.1/tr69confg.html
+
+*** Keywords ***
+GW020BRC_FUNC_02_Teardown
+    ###Teardown
+    ###Sleep 180 to wait user/pass: Disable
+    Sleep                                    180s
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+
+GW020BRC_FUNC_02
+    #Step 1: Access WEB GUI via LAN
+    #Step 2: Login with incorrect password 3 times
+    SL.Set Selenium Speed                          0.7
+    Set Test Message                               *HTML* <b>GW020BRC_FUNC_02</b> 
+    ###    
+    Login To Browser                               remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                            url=${LOGIN_URL}
+    ...                                            username=${ONT_WEB_USER}
+    ...                                            password=${ONT_WEB_PASS}
+    ...                                            browser=${BROWSER}
+    Welcome Page Should Be Open
+    Logout Page                                    logout_url=${LOGIN_URL}
+    ...                                            user=admin
+    SL.Delete All Cookies
+    SL.Close All Browsers
+    ###
+    Log To Console                                 Step 1 + 2: Access WEB GUI via LAN then login with incorrect password
+    Login To Admin User With Wrong Password        remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                            url=${LOGIN_URL}
+    ...                                            username=${ONT_WEB_USER}
+    ...                                            password_1=${ONT_WEB_PASS_FAIL_1}
+    ...                                            password_2=${ONT_WEB_PASS_FAIL_2}
+    ...                                            password_3=${ONT_WEB_PASS_FAIL_3}
+    ...                                            browser=${BROWSER}
+    SL.Close Browser
+
+    Login To Browser                               remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                            url=${LOGIN_URL}
+    ...                                            username=${ONT_WEB_USER}
+    ...                                            password=${ONT_WEB_PASS}
+    ...                                            browser=${BROWSER}
+    Welcome Page Should Be Open
+
+    #Step 4: Create a PPPoE WAN
+    Log To Console                                 \nCreate Wan Service...
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+
+    Log To Console                                 Step 4: Create a PPPoE WAN
+    Create New Wan PPPoE                           url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                            network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                                            priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                                            vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    ...                                            ppp_username=${CORRECT_PPP_USERNAME}
+    ...                                            ppp_password=${CORRECT_PPP_PASSWORD}
+    ...                                            routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                            wan_interface=${PPPOE_WAN_INTERFACE}
+    ...                                            ppp_mtu_size=${PPPOE_MTU_SIZE}
+
+    # #Step 4.1: Verify WAN should success on web
+    Log To Console                                 Step 4.1: Verify WAN should success on web
+    Wait Until Keyword Succeeds                    5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+    #Step 5: Check if TR069 page exist
+    Log To Console                                 Step 5: Check if TR069 page exist
+    SL.Go to                                       ${TR069_LINK}
+    SL.Wait Until Page Contains            TR-069 Client Configuration
+    ...                                            timeout=20s
+    ...                                            error=\nTR069 Page Not Found
+    SL.Page Should Contain                     	   TR-069 Client Configuration
+
+    #Step 6: Reboot ONT
+    Log To Console                                 Step 6: Reboot ONT
+    Run Keyword And Continue On Failure            Reboot Device Via Web GUI
+    SL.Go To                                       url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible               ${LOGIN_BUTTON}
+    ...                                            timeout=20s
+    ...                                            error=\nLogin Page Does Not Found!
+    Input Username                                 username=${ONT_WEB_USER}
+    Input User Password                            password=${ONT_WEB_PASS}
+    Submit Credentials
+    #Step6.1: Check relogin and status WAN
+
+    Welcome Page Should Be Open
+    Wait Until Keyword Succeeds                    5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    SL.Close All Browsers
+    
+    Log To Console									\nreset factory
+
+    [Teardown]    Run Keyword And Ignore Error     GW020BRC_FUNC_02_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_02
+    # GW020BRC_FUNC_02

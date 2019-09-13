@@ -1,0 +1,87 @@
+*** Settings ***
+Library                      SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Resource                     ../../SeleniumCommonLib.txt
+
+
+*** Variables ***
+${ddns_page}                         http://192.168.1.1/ddnsmngr.cmd
+
+*** Keywords ***
+Go To DDNS Config Page
+    SL.Go To                         ${ddns_page}
+    SL.Wait Until Page Contains      DNS -- Dynamic DNS
+    ...                              timeout=10s
+    ...                              error=\nDynamic DNS Page did not show up
+    SL.Page Should Contain           DNS -- Dynamic DNS
+
+
+Add Config DDNS
+    [Arguments]                              ${ddns_mode}     ${ddns_hostname}     ${ddns_interface}     ${ddns_username}     ${ddns_password}
+    :FOR                                     ${i}     IN RANGE    2    9999
+    \    ${element_is_visible}=              Run Keyword And Return Status       SL.Element Should Be Visible    xpath=//table/tbody/tr[${i}]
+    \    Exit For Loop If                    not ${element_is_visible}
+    \    ${contain_existed_ddns}=   Run Keyword And Return Status       SL.Element Should Be Visible    xpath=//table/tbody/tr[${i}]/td[contains(text(),"ddns.net")]
+    \    Run Keyword If                      ${contain_existed_ddns}    Remove DDNS    ${i}
+    \    Exit For Loop If                    ${contain_existed_ddns}
+    SL.Page Should Contain Element           xpath=//input[@value="Add"]
+    SL.Click Element                         xpath=//input[@value="Add"]
+    SL.Wait Until Page Contains              DNS -- Add Dynamic DNS     timeout=60s
+    SL.Page Should Contain Element           xpath=//select[@name="ddnsMode"]
+    SL.Select From List By Value             xpath=//select[@name="ddnsMode"]          ${ddns_mode}
+    SL.Page Should Contain Element           xpath=//input[@name="ddnsHostname"]
+    SL.Input Text                            xpath=//input[@name="ddnsHostname"]       ${ddns_hostname}
+    SL.Page Should Contain Element           xpath=//select[@name="ddnsInterface"]
+    SL.Select From List By Value             xpath=//select[@name="ddnsInterface"]     ${ddns_interface}
+    SL.Page Should Contain Element           xpath=//input[@name="noipUsername"]
+    SL.Input Text                            xpath=//input[@name="noipUsername"]       ${ddns_username}
+    SL.Page Should Contain Element           xpath=//input[@name="noipPassword"]
+    SL.Input Text                            xpath=//input[@name="noipPassword"]       ${ddns_password}
+    SL.Click Element                         xpath=//input[@value="Apply/Save"]
+    SL.Wait Until Page Contains              DNS -- Dynamic DNS
+    ...                                      timeout=60s
+
+
+Remove DDNS
+    [Arguments]                              ${index}
+    SL.Select Checkbox                       xpath=//table/tbody/tr[${index}]/td/input[@name="rml"]
+    Sleep                                    2s
+    SL.Checkbox Should Be Selected           xpath=//table/tbody/tr[${index}]/td/input[@name="rml"]
+    SL.Page Should Contain Element           xpath=//input[@value="Remove"]
+    SL.Click Element                         xpath=//input[@value="Remove"]
+    SL.Wait Until Page Contains              DNS -- Dynamic DNS     timeout=60s
+
+
+Config DDNS NOIP
+    [Documentation]                 Config if ddns mode is no-ip
+    [Arguments]                     ${ddns_username}
+    ...                             ${ddns_password}
+    Select From Dropdown            dropdown_name=ddnsMode                  value=noip
+    Fill Value To TextBox           textbox_name=noipUsername               value=${ddns_username}
+    Fill Value To TextBox           textbox_name=noipPassword               value=${ddns_password}
+Config DDNS DYNAMIC
+    [Documentation]                 Config if ddns mode is dynamic ddns
+    [Arguments]                     ${ddns_username}
+    ...                             ${ddns_password}
+    Select From Dropdown            dropdown_name=ddnsMode                  value=dyndns
+    Fill Value To TextBox           textbox_name=dyndnsUsername             value=${ddns_username}
+    Fill Value To TextBox           textbox_name=dyndnsPassword             value=${ddns_password}
+Config DDNS TZO
+    [Documentation]                 Config if ddns mode is tzo
+    [Arguments]                     ${ddns_username}
+    ...                             ${ddns_password}
+    Select From Dropdown            dropdown_name=ddnsMode                  value=tzo
+    Fill Value To TextBox           textbox_name=tzoEmail                   value=${ddns_username}
+    Fill Value To TextBox           textbox_name=tzoKey                     value=${ddns_password}
+
+Check DDNS Host Name Exist
+    [Documentation]                 Find virtual on table.
+    ...                             Input:
+    ...                             1. ddns_hostname                    ddns hostname
+    [Arguments]                     ${ddns_hostname}
+    ${isExist}=                     Set Variable       False
+    :FOR    ${i}                    IN RANGE    1    50
+    \     ${element_visible}=       Run Keyword And Return Status       SL.Element Should Be Visible     xpath=//table[@class='wholetable']/tbody/tr[${i}]/td[1]
+    \     Run Keyword If            "${element_visible}" == "False"         Exit for loop
+    \     ${hostname}=              SL.Get Text                     xpath=//table[@class='wholetable']/tbody/tr[${i}]/td[1]
+    \     ${isExist}=               Set Variable If    '${hostname}' == '${ddns_hostname}'     True
+    [Return]                        ${isExist}

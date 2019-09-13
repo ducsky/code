@@ -1,0 +1,165 @@
+*** Settings ***
+Library                                      SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library                                      SSHLibrary     WITH NAME    SSHL
+Resource                                     selenium/Login/SeleniumLoginLib.txt
+Resource                                     selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource                                     selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource                                     ssh/SshLib.txt
+Resource                                     selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource                                     selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessBasicLib.txt
+Resource                                     variables/AllVariables.txt
+Resource                                     Watching_Youtube_onPC.txt
+
+*** Variables ***
+${LOGIN_BUTTON}                                xpath=//button[@class="loginBtn"]
+
+*** Keywords ***
+GW020BRC_FUNC_19_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+    ######Disable wifi
+    Open Connection And Login To Remote Machine    ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+    Delete All Wireless
+    SSHL.Close All Connections
+
+GW020BRC_FUNC_19_Wifi_Rescan
+    [Arguments]                                    ${wifi_ssid}
+    SSHL.Execute Command                           nmcli device wifi rescan
+    ${wirelessList}=                               SSHL.Execute Command    nmcli device wifi list
+    Should Contain                                 ${wirelessList}    ${wifi_ssid}
+
+Check default enable nat
+    SL.Wait Until Element Is Visible    xpath=//img[@id="showpppAdv"]    timeout=60s    error=\nExpand advanced PPPoE WAN service settings Not Found
+    SL.Click Element                    xpath=//img[@id="showpppAdv"]
+    SL.Wait Until Element Is Visible    xpath=//input[@name="enblNatppp"]    timeout=60s    error=\nEnable NAT Checkbox Not Found
+    SL.Checkbox Should Be Selected      xpath=//input[@name="enblNatppp"]
+
+GW020BRC_FUNC_19
+    [Arguments]                              ${YOUTUBE_DURATION_PC}
+    SL.Set Selenium Speed                    0.7
+    Set Test Message                         *HTML* <b>GW020BRC_FUNC_19</b>
+    Log To Console                           Check Function: Enable/Disable NAT on WAN
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+
+    ##Name SSID
+    Open Wireless Configure Page             wireless_configure_url=${WIRELESS_CONFIGURE_URL}
+    Name SSID                                ssid=${WIFI_SSID_1}
+
+    ######Remove existed Wan Service
+    Log To Console                           \nStep 1.1: Access to Network Settings Wan Page and Remove existed WAN
+    Open Network Settings Wan Page            url=${NETWORK_SETTINGS_WAN_URL}
+
+   ###Create PPPoE WAN
+    Log To Console                           \nStep 1.2: Create a PPPoE WAN\n\n
+    Create New Wan PPPoE                     url=${network_settings_wan_url}
+    ...                                      network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                                      priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                                      vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    ...                                      ppp_username=${CORRECT_PPP_USERNAME}
+    ...                                      ppp_password=${CORRECT_PPP_PASSWORD}
+    ...                                      routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                      wan_interface=${PPPOE_WAN_INTERFACE}
+    ...                                      ppp_mtu_size=${PPPOE_MTU_SIZE}
+
+    ######Verify WAN should success on web
+    Log To Console                           \nStep 1.3: Verify WAN should success on web
+    Wait Until Keyword Succeeds              5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    Firewall Status Should Be Enabled        vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    NAT Status Should Be Enabled             vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+    ##Verify Ping to 8.8.8.8 should success
+    Log To Console                            \nStep 1.4: Verify Ping to 8.8.8.8 should success
+    Open Connection And Login To Remote Machine    ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+
+    # Disconnect Wifi
+    Delete All Wireless
+    Wait Until Keyword Succeeds                    120s    5s    GW020BRC_FUNC_19_Wifi_Rescan    wifi_ssid=${WIFI_SSID_1}
+    ${wlan_interface}=                             SSHL.Execute Command    nmcli --fields Device,Type device status | grep 'wifi' | awk '{print $1}'
+    ${lan_interface}=                              SSHL.Execute Command    ifconfig | grep -B1 "inet addr:192.168" | awk '$1!="inet" && $1!="--" {print $1}'
+    Wait Until Keyword Succeeds                    5x    1s    Ping Should Succeed    ping_address=${TO_GOOGLE}    network_interface=${lan_interface}
+
+    Connect To Wifi                                ${wlan_interface}    ${WIFI_SSID_1}
+
+    Wait Until Keyword Succeeds                    5x    1s    Ping Should Succeed    ping_address=${TO_GOOGLE}    network_interface=${wlan_interface}
+    # Disconnect Wifi
+    Delete All Wireless
+
+    #####Step 1.5:Watching Youtube on PC
+    Log To Console                                 \nStep 1.5: Watching Youtube on PC in ${YOUTUBE_DURATION_PC}s...
+    Watching Youtube on PC                         youtube_url=https://youtu.be/Llw9Q6akRo4     youtube_duration=${YOUTUBE_DURATION_PC}
+    SL.Close Browser
+
+    # Step 2.1: Verify default enable NAT is checked
+    Log To Console                           \nStep 2.1: Verify default enable NAT is checked
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Open Network Settings Wan Page           url=${NETWORK_SETTINGS_WAN_URL}
+    Edit Wan Service                         vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    Check default enable nat
+
+    # Step 2.2: uncheck checkbox "Enable NAT"
+    Log To Console                           \nStep 2.2: uncheck checkbox "Enable NAT"
+    # Enable/Disable NAT
+    SL.Wait Until Element Is Visible        xpath=//input[@name="enblNatppp"]
+    ...                                     timeout=30s
+    ...                                     error=\nEnable NAT Checkbox Not Found
+    SL.Unselect Checkbox                    xpath=//input[@name="enblNatppp"]
+    SL.Wait Until Element Is Visible        xpath=//input[@value="Apply/Save"]    timeout=10s    error=\nApply/Save Button Not Found
+    SL.Click Element                        xpath=//input[@value="Apply/Save"]
+    Log To Console                          \nuncheck checkbox "Enable NAT" successfull!!!
+
+    ######Step 2.3: Verify WAN should success on web and Disable NAT
+    Log To Console                           \nStep 2.3: Verify WAN should success on web and Disable NAT
+    Wait Until Keyword Succeeds              5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    Firewall Status Should Be Enabled        vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    NAT Status Should Be Disabled            vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    SL.Close Browser
+
+    # Step 2.3: Check Ping to 8.8.8.8 and connect internet failed
+    Log To Console                           Step 2.3: Verify Ping to 8.8.8.8 should failed
+
+    Wait Until Keyword Succeeds                    5x    1s    Ping Should Failed    ping_address=${TO_GOOGLE}    network_interface=${lan_interface}
+
+    Connect To Wifi                                ${wlan_interface}    ${WIFI_SSID_1}
+
+    Wait Until Keyword Succeeds                    5x    1s    Ping Should Failed    ping_address=${TO_GOOGLE}    network_interface=${wlan_interface}
+    # Disconnect Wifi
+    Delete All Wireless
+    SSHL.Close Connection
+
+    [Teardown]    Run Keyword And Ignore Error     GW020BRC_FUNC_19_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_19
+    # GW020BRC_FUNC_19                            YOUTUBE_DURATION_PC=60

@@ -1,0 +1,128 @@
+*** Settings ***
+Library     SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Resource    SeleniumLoginLib.txt
+
+*** Variables ***
+
+*** Keywords ***
+Login To Operator User Via LAN
+    [Arguments]    ${remote_selenium_server_tmp}    ${password}
+    Login To Browser                        remote_selenium_server_tmp=${remote_selenium_server_tmp}
+    ...                                     url=${LOGIN_URL}
+    ...                                     username=operator
+    ...                                     password=${password}
+    ...                                     browser=${BROWSER}
+    SL.Wait Until Element Is Visible       xpath=//button[@class="loginBtn"]    timeout=15s    error=\nLogin Page Does Not Show Up
+    SL.Page Should Contain        The username or password is incorrect
+    :FOR    ${i}    IN RANGE    0    2
+    \     Relogin    username=operator     password=${password}
+    \     SL.Wait Until Element Is Visible       xpath=//button[@class="loginBtn"]    timeout=15s    error=\nLogin Page Does Not Show Up
+    \     SL.Page Should Contain        The username or password is incorrect
+    SL.Element Should Be Disabled    xpath=//input[@id="userName"]
+    SL.Element Should Be Disabled    xpath=//input[@id="pcPassword"]
+    Sleep    180
+
+Login To Operator User Via WAN NMS
+    [Arguments]    ${remote_selenium_server_tmp}    ${password}    ${nms_ip_tmp}
+    Login To Operator User With Wrong Password    remote_selenium_server_tmp=${remote_selenium_server_tmp}
+    ...                                           password=ttcn@99CN123    nms_ip_tmp=${nms_ip_tmp}
+    Reboot ONT Device    password=${password}
+    Login To Operator User With Wrong Password    remote_selenium_server_tmp=${remote_selenium_server_tmp}
+    ...                                           password=ttcn@99CN123    nms_ip_tmp=${nms_ip_tmp}
+    SL.Close Browser
+    Login To Browser With Operator User    remote_selenium_server_tmp=${remote_selenium_server_tmp}    username=operator
+    ...                                    password=${password}    nms_ip_tmp=${nms_ip_tmp}
+    Welcome Page Should Be Open
+
+Login To Admin And Operator User Simultaneously
+    [Arguments]                                   ${remote_selenium_server_tmp}    ${password}    ${nms_ip_tmp}
+    Log To Console                                Step 1 + 2: Go to ont web gui via 192.168.1.1 and login with admin user
+    Login To Browser                              remote_selenium_server_tmp=${remote_selenium_server_tmp}
+    ...                                           url=${LOGIN_URL}
+    ...                                           username=operator
+    ...                                           password=${password}
+    ...                                           browser=${BROWSER}
+    SL.Close Browser
+    Log To Console                                Step 3 + 4: Go to ont web gui via nms ip and login with operator user without logout from admin user
+    Login To Browser With Operator User           remote_selenium_server_tmp=${remote_selenium_server_tmp}
+    ...                                           username=operator
+    ...                                           password=${password}    nms_ip_tmp=${nms_ip_tmp}
+    SL.Wait Until Page Contains                   admin is working now. Please wait
+    ...                                           timeout=10    error=\nPage alarm did not show up\n
+    SL.Close Browser
+    Log To Console                                Step 5: Logout from admin user and try to login with operator user
+    Logout From Admin User                        remote_selenium_server_tmp=${remote_selenium_server_tmp}
+    ...                                           password=${password}
+    SL.Close Browser
+    Login To Browser With Operator User           remote_selenium_server_tmp=${remote_selenium_server_tmp}
+    ...                                           username=operator
+    ...                                           password=${password}
+    ...                                           nms_ip_tmp=${nms_ip_tmp}
+    Welcome Page Should Be Open
+    SL.Close Browser
+    Log To Console                                Step 6: Try to login with operator user but password is wrong
+    Logout From Operator User                     remote_selenium_server_tmp=${remote_selenium_server_tmp}
+    ...                                           password=${password}
+    ...                                           nms_ip_tmp=${nms_ip_tmp}
+    SL.Close Browser
+    Login To Operator User With Wrong Password    remote_selenium_server_tmp=${remote_selenium_server_tmp}
+    ...                                           password=ttcn@99CN123
+    ...                                           nms_ip_tmp=${nms_ip_tmp}
+    SL.Close Browser
+    Log To Console                                Step 7: Logout from operator user and login with admin user
+    Logout From Operator User                     remote_selenium_server_tmp=${remote_selenium_server_tmp}
+    ...                                           password=${password}
+    ...                                           nms_ip_tmp=${nms_ip_tmp}
+    SL.Close Browser
+    Login To Browser                              remote_selenium_server_tmp=${remote_selenium_server_tmp}
+    ...                                           url=${LOGIN_URL}
+    ...                                           username=operator
+    ...                                           password=${password}
+    ...                                           browser=${BROWSER}
+
+Go To Operator Web Dashboards
+    [Arguments]    ${nms_ip_tmp}
+    SL.Go To    http://${nms_ip_tmp}/tr69confg.html
+    SL.Wait Until Element Is Visible     xpath=//td[contains(text(),"TR-069 Client Configuration")]    timeout=10    error=\nPage TR 069 did not show up\n
+    SL.Close Browser
+
+Login To Browser With Operator User
+    [Arguments]             ${remote_selenium_server_tmp}    ${username}        ${password}    ${nms_ip_tmp}
+    Open Browser To Login Page    remote_selenium_server_tmp=${remote_selenium_server_tmp}    url=http://${nms_ip_tmp}/
+    Input Username          ${username}
+    Input User Password     ${password}
+    Submit Credentials
+
+Login To Operator User With Wrong Password
+    [Arguments]    ${remote_selenium_server_tmp}    ${password}    ${nms_ip_tmp}
+    Login To Browser With Operator User    remote_selenium_server_tmp=${remote_selenium_server_tmp}    username=operator
+    ...                                    password=${password}    nms_ip_tmp=${nms_ip_tmp}
+    SL.Page Should Contain        The username or password is incorrect
+    :FOR    ${i}    IN RANGE    0    2
+    \     Relogin    username=operator     password=${password}    url=http://${nms_ip_tmp}/
+    \     SL.Wait Until Element Is Visible       xpath=//button[@class="loginBtn"]    timeout=15s    error=\nLogin Page Does Not Show Up
+    \     SL.Page Should Contain        The username or password is incorrect
+    SL.Element Should Be Disabled    xpath=//input[@id="userName"]
+    SL.Element Should Be Disabled    xpath=//input[@id="pcPassword"]
+    Sleep    180
+
+Reboot ONT Device
+    [Arguments]    ${password}
+    Relogin     username=admin    password=${password}
+    Welcome Page Should Be Open
+    SL.Go To     http://192.168.1.1/resetrouter.html
+    SL.Wait Until Element Is Visible     xpath=//input[@value="Reboot"]     timeout=10     error=\nReboot page didnt showup\n
+    SL.Click Element     xpath=//input[@value="Reboot"]
+    SL.Wait Until Element Is Visible     xpath=//b[contains(text(),"Broadband Router Reboot")]     timeout=10     error=\nCannot reboot device\n
+    Sleep    120
+    SL.Close Browser
+
+Logout From Operator User
+    [Arguments]    ${remote_selenium_server_tmp}    ${password}    ${nms_ip_tmp}
+    Login To Browser With Operator User    remote_selenium_server_tmp=${remote_selenium_server_tmp}    username=operator
+    ...                                    password=${password}    nms_ip_tmp=${nms_ip_tmp}
+    Welcome Page Should Be Open
+    SL.Select Frame    menufrm
+    SL.Click Element     xpath=//a[@id="81"]
+    SL.Handle Alert
+    SL.Unselect Frame

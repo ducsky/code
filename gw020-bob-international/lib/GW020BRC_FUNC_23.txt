@@ -1,0 +1,49 @@
+*** Settings ***
+Documentation        Block IP VNPT
+Library              SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library              AppiumLibrary   run_on_failure=AL.Capture Page Screenshot    WITH NAME   AL
+Resource             selenium/Login/SeleniumLoginLib.txt
+Resource             selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource             selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource             variables/AllVariables.txt
+
+*** Variables ***
+
+*** Keywords ***
+GW020BRC_FUNC_23_Teardown
+    ${wan_vlan}=                      Get Variable Value    ${wan_vlan}
+    Open Network Settings Wan Page    url=${NETWORK_SETTINGS_WAN_URL}
+    Remove Wan Service                vlan_id=${wan_vlan}
+    SL.Delete All Cookies
+    SL.Close All Browsers
+
+GW020BRC_FUNC_23
+	### Only use VLAN 0/1112 and user/pass: ttcn2/ttcn2
+    [Arguments]                       ${wan_vlan}=1111    ${username_ipv4_pppoe}=ttcn2   ${password_ipv4_pppoe}=ttcn2
+    SL.Set Selenium Speed             0.7
+    Set Test Message                  *HTML* <b>GW020BRC_FUNC_23</b>
+    Set Suite Variable                ${wan_vlan}
+    Login To Browser                  remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                               url=${LOGIN_URL}
+    ...                               username=${ONT_WEB_USER}
+    ...                               password=${ONT_WEB_PASS}
+    ...                               browser=${BROWSER}
+    Welcome Page Should Be Open
+    Open Network Settings Wan Page    url=${NETWORK_SETTINGS_WAN_URL}
+    Create New Wan PPPoE              url=${NETWORK_SETTINGS_WAN_URL}
+    ...                               network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                               priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                               vlan_id=${wan_vlan}
+    ...                               ppp_username=${username_ipv4_pppoe}
+    ...                               ppp_password=${password_ipv4_pppoe}
+    ...                               routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                               wan_interface=${PPPOE_WAN_INTERFACE}
+    ...                               ppp_mtu_size=${PPPOE_MTU_SIZE}
+
+    Wait Until Keyword Succeeds       5x    1s    Wan Connection Should Be Success    vlan_id=${wan_vlan}
+
+    [Teardown]                        Run Keyword And Ignore Error    GW020BRC_FUNC_23_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_23
+    # GW020BRC_FUNC_23                wan_vlan=1111    username_ipv4_pppoe=ttcn2    password_ipv4_pppoe=ttcn2

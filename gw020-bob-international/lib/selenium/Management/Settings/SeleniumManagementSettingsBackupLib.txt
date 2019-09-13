@@ -1,0 +1,21 @@
+*** Settings ***
+Library                                   SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Resource                                 ../../SeleniumCommonLib.txt
+
+*** Variables ***
+${backup_config_page}                   http://192.168.1.1/backupsettings.html
+
+*** Keywords ***
+Go To Backup Config Page
+    SL.Go To                            ${backup_config_page}
+    SL.Wait Until Page Contains         Settings -- Backup
+    ...                                 timeout=10s
+    ...                                 error=\nBackup Config Page did not show up
+    SL.Page Should Contain              Settings -- Backup
+
+
+Backup Config
+    Go To Backup Config Page
+    SL.Page Should Contain Element           xpath=//input[@value="Backup Settings"]
+    SL.Click Element                         xpath=//input[@value="Backup Settings"]
+    Sleep                                    5s

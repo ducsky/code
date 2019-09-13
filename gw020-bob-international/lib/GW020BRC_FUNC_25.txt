@@ -1,0 +1,159 @@
+*** Settings ***
+Library                                       SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library                                       AppiumLibrary   run_on_failure=AL.Capture Page Screenshot    WITH NAME    AL
+Resource                                      ssh/SshLib.txt
+Resource                                      selenium/Login/SeleniumLoginLib.txt
+Resource                                      selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource                                      selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource                                      selenium/AdvancedFeatures/InterfaceGrouping/SeleniumAdvancedFeaturesInterfaceGrouping.txt
+Resource                                      selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessBasicLib.txt
+Resource                                      appium/Settings/AppiumSettingsWifiLib.txt
+Resource                                      selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource                                      variables/AllVariables.txt
+
+*** Variable ***
+${LOGIN_BUTTON}                                xpath=//button[@class="loginBtn"]
+
+*** Keywords ***
+GW020BRC_FUNC_25_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+    AL.Close All Applications
+    
+GW020BRC_FUNC_25_InterfaceGroupingbridge
+    ${wan_bridge_interface}=                 Get Variable Value    ${wan_bridge_interface}    
+    Log To Console                           \nInterfaceGrouping to LAN ${LAN_INTERFACE_ONT} and SSID ${WIFI_SSID_4}
+    Open Interface Group Page                interface_grouping_config_url=${INTERFACE_GROUPING_CONFIG_URL}
+    Add Interface Group                      group_name=${INTERFACE_GROUP_NAME}
+    ...                                      wan_name=${wan_bridge_interface}
+    ...                                      lan_interface=${LAN_INTERFACE_ONT}
+    ...                                      name_ssid=${WIFI_SSID_4}
+
+
+GW020BRC_FUNC_25_InterfaceGroupingpppoe
+    ${wan_pppoe_interface}=                  Get Variable Value    ${wan_pppoe_interface} 
+    Log To Console                           \nInterfaceGrouping to LAN ${LAN_INTERFACE_ONT} and SSID ${WIFI_SSID_2}
+    Open Interface Group Page                interface_grouping_config_url=${INTERFACE_GROUPING_CONFIG_URL}
+    Add Interface Group                      group_name=pppoe
+    ...                                      wan_name=${wan_pppoe_interface}
+    ...                                      lan_interface=${LAN_INTERFACE_ONT}
+    ...                                      name_ssid=${WIFI_SSID_2}
+
+GW020BRC_FUNC_25
+    Log To Console                           Verify InterfaceGrouping Function for WAN BRIDGE and PPPOE
+    SL.Set Selenium Speed                    0.7
+    Set Test Message                         *HTML* <b>GW020BRC_FUNC_25</b>
+    ######Login
+    Login with correct password
+    Log To Console                           \nAccess to Network Settings Wan Page and Remove existed WAN
+    Open Network Settings Wan Page           url=${NETWORK_SETTINGS_WAN_URL}
+
+    ####Enable Wireles
+    Open Wireless Configure Page             wireless_configure_url=${WIRELESS_CONFIGURE_URL}
+    Enable Wireless
+
+    #####Change WiFi Name for Main SSID to '${WIFI_SSID_1}'
+    Log To Console                          \nChange WiFi Name for Main SSID to '${WIFI_SSID_1}'\n
+    Name SSID                                ssid=${WIFI_SSID_1}
+
+    #####Rename for SSID 2 and SSID 4
+    Log To Console                           \nRename for SSID 2 and SSID 4...\n
+    Enable Virtual Access Point              WIFI_SSID_2=${WIFI_SSID_2}    
+    ...                                      WIFI_SSID_4=${WIFI_SSID_4}
+
+    ####Add WAN Bridge
+    Open Network Settings Wan Page          url=${NETWORK_SETTINGS_WAN_URL}
+    Log To Console                          \nAdd Wan Type Bridging\n
+    Add New Wan Service                     wan_service_type=Bridging
+    Select Bridging Wan Service             priority=${CORRECT_BRIDGE_VLAN_PRIORITY}
+    ...                                     vlan_id=${CORRECT_BRIDGE_VLAN_ID}
+
+    #####Verify Bridging WAN should success on web
+    Log To Console                          \nVerify Bridging WAN should success on web\n
+    Wait Until Keyword Succeeds             5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_BRIDGE_VLAN_ID}      
+    ${wan_bridge_interface}=                Get Wan Interface     vlan_id=${CORRECT_BRIDGE_VLAN_ID}
+    Set Suite Variable                      ${wan_bridge_interface}
+
+    ##########InterfaceGrouping
+    GW020BRC_FUNC_25_InterfaceGroupingbridge
+    SL.Close Browser
+
+    # #### Verify UE device connected to WiFi_mode Open
+    Log To Console                          \nStep 3: Verify UE device connected to WiFi ${WIFI_SSID_4}
+    Open Wifi Picker Activity               remote_server=${APPIUM_REMOTE_SERVER}
+    ...                                     remote_port=${APPIUM_REMOTE_PORT}
+    ...                                     platform=${PLATFORM_NAME}
+    ...                                     version=${PLATFORM_VERSION}
+    ...                                     ue_device_name=${DEVICE_NAME}
+    Turn On Wifi
+    Forget Saved Network And Add Network    wifi_ssid=${WIFI_SSID_4}    wifi_security=None
+    ${ip}=       Get Granted Ip Address
+    Should Contain                          ${ip}           ${BRIDGE_WAN_SUBNET}
+    AL.Close Application
+
+    ######Login
+    Login with correct password
+
+    ####Remove WAN Bridge
+    Open Network Settings Wan Page          url=${NETWORK_SETTINGS_WAN_URL}
+    Remove Wan Service                      vlan_id=12
+    ###Create WAN PPPoE
+    Create New Wan PPPoE                    url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                     network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                                     priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                                     vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    ...                                     ppp_username=${CORRECT_PPP_USERNAME}
+    ...                                     ppp_password=${CORRECT_PPP_PASSWORD}
+    ...                                     routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                     wan_interface=${PPPOE_WAN_INTERFACE}
+
+
+    #####Verify PPPoE WAN should success on web
+    Log To Console                          \nVerify PPPoE WAN should success on web\n
+    Wait Until Keyword Succeeds             5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_PPPOE_VLAN_ID}    
+    ${wan_pppoe_interface}=                 Get Wan Interface     vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    Set Suite Variable                      ${wan_pppoe_interface}
+
+    ##########InterfaceGrouping
+    GW020BRC_FUNC_25_InterfaceGroupingpppoe
+    SL.Close Browser
+
+    # #### Verify UE device connected to WiFi_mode Open
+    # Log To Console                          \nStep 3: Verify UE device connected to WiFi ${WIFI_SSID_2}
+    Open Wifi Picker Activity               remote_server=${APPIUM_REMOTE_SERVER}
+    ...                                     remote_port=${APPIUM_REMOTE_PORT}
+    ...                                     platform=${PLATFORM_NAME}
+    ...                                     version=${PLATFORM_VERSION}
+    ...                                     ue_device_name=${DEVICE_NAME}
+    Turn On Wifi
+    Forget Saved Network And Add Network    wifi_ssid=${WIFI_SSID_2}    wifi_security=None
+    ${ip}=       Get Granted Ip Address
+    Should Contain                          ${ip}           ${PPP_GROUP_WAN_SUBNET}
+    AL.Close Application
+
+    [Teardown]    Run Keyword And Ignore Error     GW020BRC_FUNC_25_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_25
+    # GW020BRC_FUNC_25
+
+
+

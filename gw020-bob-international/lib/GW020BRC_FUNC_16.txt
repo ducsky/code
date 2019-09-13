@@ -1,0 +1,227 @@
+*** Settings ***
+Library                                      SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library                                      SSHLibrary    WITH NAME    SSHL
+Resource                                     selenium/Login/SeleniumLoginLib.txt
+Resource                                     selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource                                     selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource                                     selenium/Login/SeleniumLoginWithOperatorUserLib.txt
+Resource                                     selenium/AdvancedFeatures/Routing/SeleniumAdvancedFeaturesRoutingStaticRoute.txt
+Resource                                     selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource                                     ssh/SshLib.txt
+Resource                                     variables/AllVariables.txt
+
+*** Variables ***
+${LOGIN_BUTTON}                              xpath=//button[@class="loginBtn"]
+${destination_ip}                            10.84.107.0/24
+${gateway_ip}                                10.84.22.1
+
+*** Keywords ***
+GW020BRC_FUNC_16_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+    ###Close SSH
+    SSHL.Close All Connections
+    ######Factory Reset Via Web GUI ONT 02
+    ${wan_ip_address}=                       Get Variable Value    ${wan_ip_address}
+    ${CLIENT_IP}=                            Get Variable Value    ${CLIENT_IP}
+    Login To Browser                         remote_selenium_server_tmp=${CLIENT_IP}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    ${logout}=                               Run Keyword And Return Status    SL.Page Should Contain    operator is working now
+    Run Keyword If                           ${logout} == True    Logout And Login As Another User    ip_address_logout=${wan_ip_address}
+    ...                                                                                               ip_address_login=192.168.1.1
+    ...                                                                                               user_logout=operator
+    ...                                                                                               user_login=admin
+    ...                                                                                               default_password=oper@tor
+    ...                                                                                               new_password=${ONT_WEB_PASS}
+
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    SL.Wait Until Page Contains              Access Control -- Passwords
+    ...                                      timeout=20s
+    ...                                      error=\nChange Password Page Does Not Show Up!
+    Change Password                          admin    admin    ${ONT_WEB_PASS}    ${ONT_WEB_PASS}
+    Log To Console                           \nChange Password to ${ONT_WEB_PASS} Successfully!
+    SL.Delete All Cookies
+    SL.Close All Browsers
+
+Telnet Input Again
+    [Arguments]                             ${user_telnet}=admin    ${pass_telnet}=gpon@Vnt00    ${delay}=1s
+    SSHL.Write                              ${user_telnet}
+    ${check_output}=                        SSHL.Read    delay=${delay}
+    Should Contain                          ${check_output}    Password:
+    SSHL.Write                              ${pass_telnet}
+
+GW020BRC_FUNC_16
+    ####Telnet to ONT with correct account
+    [Arguments]                              ${CLIENT_IP}			${CORRECT_IPOE_VLAN_ID_DYNAMIC}=1199
+    
+    Log To Console                           Telnet Via LAN
+    SL.Set Selenium Speed                    0.7
+    Set Test Message                         *HTML* <b>GW020BRC_FUNC_16</b>
+    Set Suite Variable                       ${CLIENT_IP}
+    Log To Console                           \nStep 1: Telnet to ONT with correct account\n
+    Telnet To ONT Device                     ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                      ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                      ssh_server_password=${REMOTE_SERVER_PASSWORD}
+    SSHL.Write                               exit
+    ${check_output}=                         SSHL.Read    delay=1s
+    Log To Console							 ${check_output}
+    Should Contain                           ${check_output}    Bye bye. Have a nice day!!!
+
+    ####Telnet to ONT with wrong account 3 times
+    Log To Console                           \n\nStep 2: Telnet to ONT with wrong account 3 times:\n
+    Log To Console                           \nStep 2.1: Telnet to ONT with wrong account at the first time\n
+    Telnet To ONT Device                     ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                      ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                      ssh_server_password=${REMOTE_SERVER_PASSWORD}
+    ...                                      pass_telnet=ttcn@99CN
+    ${check_output}=                         SSHL.Read    delay=1s
+    Should Contain                           ${check_output}    Login incorrect. Try again.
+
+    Log To Console                           \nStep 2.2: Telnet to ONT with wrong account at the second time\n
+    Telnet Input Again                       user_telnet=admin    pass_telnet=admin
+    ${check_output}=                         SSHL.Read    delay=1s
+    Should Contain                           ${check_output}    Login incorrect. Try again.
+
+    Log To Console                           \nStep 2.3: Telnet to ONT with wrong account at the third time\n
+    Telnet Input Again                       user_telnet=admin    pass_telnet=operator
+    ${check_output}=                         SSHL.Read    delay=1s
+    Should Contain                           ${check_output}    Authorization failed after trying 3 times!!!.
+    Should Not Contain                       ${check_output}    Login:
+    Log To Console                           Authorization failed after trying 3 times!!!.Please wait 5s...
+    ${check_output}=                         SSHL.Read    delay=5s
+    Should Contain                           ${check_output}    Login:
+
+    ###Telnet via WAN
+    Log To Console                           Telnet Via WAN
+    Log To Console                           Login by Operator account via WAN
+
+    ###Check IP WAN 4000 is connected on ONT 2
+    Log To Console                           \nCheck IP WAN 4000 is connected on ONT 2\n
+    Login To Browser                         remote_selenium_server_tmp=${CLIENT_IP}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Wait Until Keyword Succeeds              5x    1s    Wan Connection Should Be Success    vlan_id=4000
+    ${wan_ip_address}=                       Get Wan Ip Address    vlan_id=4000
+    Set Suite Variable                       ${wan_ip_address}
+    Logout Page                              logout_url=${LOGIN_URL}
+    ...                                      user=admin
+    SL.Close All Browsers
+
+    ###Check IP WAN 4000 is connected on ONT 1
+    Log To Console                           \nCheck IP WAN 4000 is connected on ONT 1\n
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Wait Until Keyword Succeeds              5x    1s    Wan Connection Should Be Success    vlan_id=4000
+
+    #####Create IPoE WAN on ONT1
+    Log To Console                           \nCreate IPoE WAN with Dynamic IP that correct VLAN Priority and VLAN ID on ONT1\n
+    Open Network Settings Wan Page           url=${NETWORK_SETTINGS_WAN_URL}
+    Create New Wan IPoE                      url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                      network_protocol=${IPOE_NETWORK_PROTOCOL}
+    ...                                      priority=${CORRECT_IPOE_VLAN_PRIORITY}
+    ...                                      vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+
+    ############Verify IPoE WAN with Dynamic IP should success on web
+    Log To Console                           \nVerify IPoE WAN with Dynamic IP should success on web\n
+    Wait Until Keyword Succeeds              5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+    ${wan_interface}=                        Get Wan Interface    vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+    Set Suite Variable                       ${wan_interface}
+
+    ###Add Static Route
+    Log To Console                           \nAdd Static Route on ONT1\n
+    Open Static Route Page
+    Create Static Route                      destination_ip=${destination_ip}
+    ...                                      interface=${wan_interface}
+    ...                                      gateway_ip=${gateway_ip}
+
+
+    ###Logout Admin account
+    Log To Console                           \nLogout from Admin account
+    Logout Page                              logout_url=${LOGIN_URL}
+    ...                                      user=admin
+    SL.Delete All Cookies
+    SL.Close All Browsers
+    Sleep                                    2s
+
+    ####Step 3: Login to PC2's Browser with operator account
+    Log To Console                           \nLogin with Operator account\n
+    Login To Browser With Operator User      remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      username=operator
+    ...                                      password=oper@tor
+    ...                                      nms_ip_tmp=${wan_ip_address}
+    SL.Wait Until Page Contains              Access Control -- Passwords          timeout=10s       error=\nChange Password Page Does Not Show Up!
+    SL.Page Should Contain                   Access Control -- Passwords
+
+    ###Change Password
+    Log To Console                           \nChange password from Operator to ${ONT_WEB_PASS}
+    Change Password                          inUserName=operator
+    ...                                      old_pass=oper@tor
+    ...                                      new_pass=${ONT_WEB_PASS}
+    ...                                      cfm_new_pass=${ONT_WEB_PASS}
+
+    ##Relogin to Browser with correct password
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           operator
+    Input User Password                      ${ONT_WEB_PASS}
+    Submit Credentials
+    Welcome Page Should Be Open
+    ##Logout Operator
+    Logout Page                             logout_url=http://${wan_ip_address}
+    ...                                     user=operator
+    SL.Close All Browsers
+
+    ####Telnet to ONT via WAN
+    Log To Console                           \nStep 3: Telnet to ONT via WAN\n
+    Open Connection And Login To Remote Machine    ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+    SSHL.Write                               telnet ${wan_ip_address}
+    ${check_output}=                         SSHL.Read    delay=5s
+    Should Not Contain                       ${check_output}    Login:
+
+    Log To Console                           \nCan not Telnet to ONT via WAN!
+
+    [Teardown]                                Run Keyword And Ignore Error    GW020BRC_FUNC_16_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_16
+    # Log To Console                           \nThuc hien Testcase GW020BRC_FUNC_16\n
+    # GW020BRC_FUNC_16                         CLIENT_IP=10.2.1.46

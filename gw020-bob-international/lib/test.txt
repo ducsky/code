@@ -1,0 +1,29 @@
+*** Settings ***
+# Library    libpy/module1.py
+Library    libpy/process_string.py   WITH NAME    PS 
+Library    OperatingSystem    WITH NAME    OS
+Library    SSHLibrary    WITH NAME    SH
+*** Variables ***
+${SERVER}    10.2.14.192
+${USER}    ubuntu
+${PASSWORD}    123456
+${DIR_FOLDER}   /home/ubuntu/Desktop/performance/
+${DIR_SRC}   /home/ubuntu/Desktop/performance/pyauto/
+*** Keywords ***
+abc
+    ${out_put}=    OS.Run    pwd
+    Log To Console    \n${out_put}
+    OS.Run    mkdir -p ./result/
+    OS.Run    zip -r pyauto.zip ./lib/pyauto
+    SH.Open Connection    ${SERVER}    timeout=36000s   
+	SH.Login    ${USER}    ${PASSWORD}
+	SH.Execute Command    mkdir -p ${DIR_FOLDER}     
+	SH.Put File    pyauto.zip    ${DIR_FOLDER}
+	${out_put}=    SH.Execute Command    mkdir -p ${DIR_FOLDER}
+	Log To Console    \n${out_put}     
+# *** Test Cases ***
+# test
+    # abc
+
+
+

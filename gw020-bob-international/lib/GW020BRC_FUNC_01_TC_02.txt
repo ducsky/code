@@ -1,0 +1,475 @@
+*** Settings ***
+Library                      SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Resource                     selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource                     selenium/Login/SeleniumLoginLib.txt
+Resource                     selenium/Management/Reboot/SeleniumManagementRebootLib.txt
+Resource                     selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource                     selenium/Login/SeleniumLoginWithOperatorUserLib.txt
+Resource                     variables/AllVariables.txt
+
+*** Variables ***
+${LOGIN_BUTTON}                                xpath=//button[@class="loginBtn"]
+
+*** Keywords ***
+GW020BRC_FUNC_01_TC_02_Teardown
+    [Arguments]                              ${ori_password}     ${random_password}     ${wrong_password}      ${block_password}     ${new_password}
+    ###Teardown
+    ${wan_ip_address}=                       Get Variable Value    ${wan_ip_address}
+    ###Sleep 180 to wait user/pass: Disable
+    Sleep                                    180s
+    Log To Console                           \nReset factory ONT Device...\n
+
+    @{pasword}    Create List    ${new_password}    ${block_password}    ${ONT_WEB_PASS}    ${ori_password}     ${random_password}     ${wrong_password}
+    :FOR    ${i}    IN    @{pasword}
+    \    SL.Close All Browsers
+    \    Login To Browser                    remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${i}
+    ...                                      browser=${BROWSER}
+    \    ${access_ctl}=                      Run Keyword And Return Status    SL.Wait Until Page Contains    Access Control -- Passwords
+    ...                                      timeout=10s
+    ...                                      error=\nChange Password Page Does Not Show Up!
+    \    ${user_disable}=                    Run Keyword And Return Status    SL.Element Should Be Disabled    xpath=//input[@id="userName"]
+    \    ${logout}=                          Run Keyword And Return Status    SL.Page Should Contain    operator is working now
+    \    Run Keyword If    ${access_ctl}     Change Password    admin    ${i}    ${ONT_WEB_PASS}    ${ONT_WEB_PASS}
+    \    Run Keyword If    ${access_ctl}     SL.Wait Until Element Is Visible    ${LOGIN_BUTTON}    timeout=20s
+    \    Run Keyword If    ${access_ctl}     Input Username    ${ONT_WEB_USER}
+    \    Run Keyword If    ${access_ctl}     Input User Password    ${ONT_WEB_PASS}
+    \    Run Keyword If    ${access_ctl}     Submit Credentials
+    \    ...    ELSE IF    ${user_disable}   Sleep    180
+    \    ...    ELSE IF    ${logout}         Logout And Login As Another User    ip_address_logout=${wan_ip_address}
+    ...                                                                          ip_address_login=192.168.1.1
+    ...                                                                          user_logout=operator
+    ...                                                                          user_login=admin
+    ...                                                                          default_password=oper@tor
+    ...                                                                          new_password=${i}
+    \    ${login}=                           Run Keyword And Return Status    Welcome Page Should Be Open
+    \    Exit For Loop If    ${login}
+
+    ######Factory Reset Via Web GUI
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    SL.Wait Until Page Contains              Access Control -- Passwords
+    ...                                      timeout=20s
+    ...                                      error=\nChange Password Page Does Not Show Up!
+    Change Password                          admin    admin    ${ONT_WEB_PASS}    ${ONT_WEB_PASS}
+    Log To Console                           \nChange Password to ${ONT_WEB_PASS} Successfully!
+    SL.Delete All Cookies
+    SL.Close All Browsers
+
+GW020BRC_FUNC_01_TC_02
+    [Arguments]                              ${username}       ${ori_password}     ${random_password}     ${wrong_password}      ${block_password}     ${new_password}
+    SL.Set Selenium Speed                    0.7
+    Set Test Message                         *HTML* <b>GW020BRC_FUNC_01_TC_02</b>
+
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+
+    Log To Console                           \nGo To Access Control Page
+    SL.Select Frame                          xpath=//frame[@name="menufrm"]
+    SL.Click Element                         xpath=//a[@id="65"]
+    SL.Wait Until Element Is Visible         xpath=//a[@id="74"]
+    SL.Click Element                         xpath=//a[@id="74"]
+    SL.Unselect Frame
+
+    SL.Wait Until Element Is Visible         xpath=//frame[@name="basefrm"]
+    SL.Select Frame                          xpath=//frame[@name="basefrm"]
+    SL.Wait Until Page Contains              Access Control -- Passwords
+    ...                                      timeout=10s
+    ...                                      error=\nChange Password Page Does Not Show Up!
+
+    Log To Console                           \nStep 2: Change password
+    ## Step 2.1: Random password different new password
+
+    Log To Console                           \nStep 2.1: Random password different new password
+    Change Wrong Password                    inUserName=${ONT_WEB_USER}
+    ...                                      old_pass=${ONT_WEB_PASS}
+    ...                                      new_pass=${new_password}
+    ...                                      cfm_new_pass=${random_password}
+    Log To Console                           \nCan not change password when confirm password different with new password
+
+    ## Step 2.2: Change pass with block password
+    Log To Console                           \nStep 2.2: Change pass with block password
+    SL.Wait Until Element Is Visible         xpath=//input[@name="inUserName"]
+    ...                                      timeout=10s
+    ...                                      error=\nUsername Textbox Does Not Show Up!
+    SL.Input Text                            xpath=//input[@name="inUserName"]              ${ONT_WEB_USER}
+    SL.Wait Until Element Is Visible         xpath=//input[@name="inOrgPassword"]
+    ...                                      timeout=10s
+    ...                                      error=\nOld Password Textbox Does Not Show Up!
+    SL.Input Password                        xpath=//input[@name="inOrgPassword"]           ${ONT_WEB_PASS}
+    SL.Wait Until Element Is Visible         xpath=//input[@name="inPassword"]
+    ...                                      timeout=10s
+    ...                                      error=\nNew Password Textbox Does Not Show Up!
+    SL.Input Password                        xpath=//input[@name="inPassword"]              ${block_password}
+    SL.Wait Until Element Is Visible         xpath=//input[@name="pwdCfm"]
+    ...                                      timeout=10s
+    ...                                      error=\nConfirm New Password Textbox Does Not Show Up!
+    SL.Input Password                        xpath=//input[@name="pwdCfm"]                  ${block_password}
+    SL.Wait Until Element Is Visible         xpath=//input[@value="Apply/Save"]
+    ...                                      timeout=10s
+    ...                                      error=\nApply Save Button Does Not Show Up!
+    SL.Click Button                          xpath=//input[@value="Apply/Save"]
+    SL.Wait Until Page Contains              Password change failed          timeout=10s       error=\nMesage Password change failed Does Not Show Up!
+    SL.Page Should Contain                   Password change failed
+
+    #Click Back Button
+    SL.Select Frame                           xpath=//frame[@name="basefrm"]
+    SL.Wait Until Element Is Visible          xpath=//input[@type="button"]
+    ...                                       timeout=10s
+    ...                                       error=\nBack Button Does Not Show Up!
+    SL.Click Button                           xpath=//input[@type="button"]
+
+    SL.Wait Until Page Contains               Access Control -- Passwords
+    ...                                       timeout=10s
+    ...                                       error=\nChange Password Page Does Not Show Up!
+    SL.Page Should Contain                    Access Control -- Passwords
+    SL.Unselect Frame
+
+    #  Step 2.3: Change pass with wrong password
+    Log To Console                           \nGo To Access Control Page
+    SL.Select Frame                          xpath=//frame[@name="menufrm"]
+    SL.Click Element                         xpath=//a[@id="65"]
+    SL.Wait Until Element Is Visible         xpath=//a[@id="74"]
+    SL.Click Element                         xpath=//a[@id="74"]
+    SL.Unselect Frame
+
+    SL.Wait Until Element Is Visible         xpath=//frame[@name="basefrm"]
+    SL.Select Frame                          xpath=//frame[@name="basefrm"]
+    SL.Wait Until Page Contains              Access Control -- Passwords
+    ...                                      timeout=10s
+    ...                                      error=\nChange Password Page Does Not Show Up!
+
+    Log To Console                           \nStep 2.3: Change pass with wrong password
+    SL.Wait Until Element Is Visible         xpath=//input[@name="inUserName"]
+    ...                                      timeout=15s
+    ...                                      error=\nUsername Textbox Does Not Show Up!
+    SL.Input Text                            xpath=//input[@name="inUserName"]              ${ONT_WEB_USER}
+    SL.Wait Until Element Is Visible         xpath=//input[@name="inOrgPassword"]
+    ...                                      timeout=15s
+    ...                                      error=\nOld Password Textbox Does Not Show Up!
+    SL.Input Password                        xpath=//input[@name="inOrgPassword"]           ${ONT_WEB_PASS}
+    SL.Wait Until Element Is Visible         xpath=//input[@name="inPassword"]
+    ...                                      timeout=15s
+    ...                                      error=\nNew Password Textbox Does Not Show Up!
+    SL.Input Password                        xpath=//input[@name="inPassword"]              ${wrong_password}
+    SL.Wait Until Element Is Visible         xpath=//input[@name="pwdCfm"]
+    ...                                      timeout=10s
+    ...                                      error=\nConfirm New Password Textbox Does Not Show Up!
+    SL.Input Password                        xpath=//input[@name="pwdCfm"]                  ${wrong_password}
+    SL.Wait Until Element Is Visible         xpath=//input[@value="Apply/Save"]
+    ...                                      timeout=10s
+    ...                                      error=\nApply Save Button Does Not Show Up!
+    SL.Click Button                          xpath=//input[@value="Apply/Save"]
+    SL.Wait Until Page Contains              Password change failed          timeout=10s       error=\nMesage Password change failed Does Not Show Up!
+    SL.Page Should Contain                   Password change failed
+
+    #Click Back Button
+    SL.Select Frame                           xpath=//frame[@name="basefrm"]
+    SL.Wait Until Element Is Visible          xpath=//input[@type="button"]
+    ...                                       timeout=10s
+    ...                                       error=\nBack Button Does Not Show Up!
+    SL.Click Button                           xpath=//input[@type="button"]
+
+    SL.Wait Until Page Contains               Access Control -- Passwords
+    ...                                       timeout=10s
+    ...                                       error=\nChange Password Page Does Not Show Up!
+    SL.Page Should Contain                    Access Control -- Passwords
+    SL.Unselect Frame
+
+    # Step 2.4: Change pass with valid password
+
+    Log To Console                           \nGo To Access Control Page
+    SL.Select Frame                          xpath=//frame[@name="menufrm"]
+    SL.Click Element                         xpath=//a[@id="65"]
+    SL.Wait Until Element Is Visible         xpath=//a[@id="74"]
+    SL.Click Element                         xpath=//a[@id="74"]
+    SL.Unselect Frame
+
+    SL.Wait Until Element Is Visible         xpath=//frame[@name="basefrm"]
+    SL.Select Frame                          xpath=//frame[@name="basefrm"]
+    SL.Wait Until Page Contains              Access Control -- Passwords
+    ...                                      timeout=10s
+    ...                                      error=\nChange Password Page Does Not Show Up!
+
+    Log To Console                           \nStep 2.4: Change pass with valid password
+    SL.Wait Until Element Is Visible         xpath=//input[@name="inUserName"]
+    ...                                      timeout=10s
+    ...                                      error=\nUsername Textbox Does Not Show Up!
+    SL.Input Text                            xpath=//input[@name="inUserName"]              ${ONT_WEB_USER}
+    SL.Wait Until Element Is Visible         xpath=//input[@name="inOrgPassword"]
+    ...                                      timeout=10s
+    ...                                      error=\nOld Password Textbox Does Not Show Up!
+    SL.Input Password                        xpath=//input[@name="inOrgPassword"]           ${ONT_WEB_PASS}
+    SL.Wait Until Element Is Visible         xpath=//input[@name="inPassword"]
+    ...                                      timeout=10s
+    ...                                      error=\nNew Password Textbox Does Not Show Up!
+    SL.Input Password                        xpath=//input[@name="inPassword"]              ${new_password}
+    SL.Wait Until Element Is Visible         xpath=//input[@name="pwdCfm"]
+    ...                                      timeout=10s
+    ...                                      error=\nConfirm New Password Textbox Does Not Show Up!
+    SL.Input Password                        xpath=//input[@name="pwdCfm"]                  ${new_password}
+    SL.Wait Until Element Is Visible         xpath=//input[@value="Apply/Save"]
+    ...                                      timeout=10s
+    ...                                      error=\nApply Save Button Does Not Show Up!
+    SL.Click Button                          xpath=//input[@value="Apply/Save"]
+    SL.Wait Until Page Contains               Message
+    ...                                       timeout=20s
+    ...                                       error=\nMessage:Password change successful Does Not Found
+    SL.Click Button                           xpath=//input[@type='button']
+    SL.Unselect Frame
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+
+    Log To Console                           \nStep 3: Relogin web page ONT
+    ### Step 3.1: Relogin web page with old password
+    Input Username                           ${ONT_WEB_USER}
+    Input User Password                      ${ONT_WEB_PASS}
+    Submit Credentials
+    SL.Page Should Contain                   The username or password is incorrect
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+
+    ### Step 3.2: Relogin web page with correct password
+    Input Username                           ${ONT_WEB_USER}
+    Input User Password                      ${new_password}
+    Submit Credentials
+    Welcome Page Should Be Open
+
+    ### Step 4: Reboot ONT via Web GUI
+    Log To Console                           \nStep 4: Reboot ONT via Web GUI
+    Run Keyword And Continue On Failure      Reboot Device Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+
+    ### Step 5: Relogin Web page ONT
+    Log To Console                           \nStep 5: Relogin Web page ONT
+    ### Step 5.1: Relogin web page with old password
+    Input Username                           ${ONT_WEB_USER}
+    Input User Password                      ${ONT_WEB_PASS}
+    Submit Credentials
+    SL.Page Should Contain                   The username or password is incorrect
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+
+    ### Step 5.2: Relogin web page with correct password
+    Input Username                           ${ONT_WEB_USER}
+    Input User Password                      ${new_password}
+    Submit Credentials
+    Welcome Page Should Be Open
+
+    Log To Console                           \nOperator: Check IP WAN 4000 is connected on ONT 1\n
+    Wait Until Keyword Succeeds              5x    1s    Wan Connection Should Be Success    vlan_id=4000
+    ${wan_ip_address}=                       Get Wan Ip Address    vlan_id=4000
+    Set Suite Variable                       ${wan_ip_address}
+    # Close Browser
+
+    ###Logout Admin account
+    Log To Console                           \nLogout from Admin account
+    Logout Page                              logout_url=${LOGIN_URL}
+    ...                                      user=admin
+    SL.Delete All Cookies
+    SL.Close All Browsers
+
+    ### Login with Operator account
+    Log To Console                           \n\nLogin to ONT web page with Operator account
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=http://${wan_ip_address}
+    ...                                      username=${username}
+    ...                                      password=${ori_password}
+    ...                                      browser=${BROWSER}
+    SL.Wait Until Page Contains              Access Control -- Passwords
+    ...                                      timeout=10s
+    ...                                      error=\nChange Password Page Does Not Show Up!
+
+    Log To Console                          \nStep 6: Change password
+    ### Step 6.1: Random password different new password
+    Go To Access Control Page                url=http://${wan_ip_address}/password.html
+
+    Log To Console                           \nStep 6.1: Change pass with Random password different new password
+    Change Wrong Password                    inUserName=${username}
+    ...                                      old_pass=${ori_password}
+    ...                                      new_pass=${new_password}
+    ...                                      cfm_new_pass=${random_password}
+    Log To Console                           \nCan not change password when confirm password different with new password
+
+    ### Step 6.2: Change pass with wrong password
+    Log To Console                           \nStep 6.2: Change pass with wrong password
+    SL.Wait Until Element Is Visible         xpath=//input[@name="inUserName"]
+    ...                                      timeout=15s
+    ...                                      error=\nUsername Textbox Does Not Show Up!
+    SL.Input Text                            xpath=//input[@name="inUserName"]              ${username}
+    SL.Wait Until Element Is Visible         xpath=//input[@name="inOrgPassword"]
+    ...                                      timeout=15s
+    ...                                      error=\nOld Password Textbox Does Not Show Up!
+    SL.Input Password                        xpath=//input[@name="inOrgPassword"]           ${ori_password}
+    SL.Wait Until Element Is Visible         xpath=//input[@name="inPassword"]
+    ...                                      timeout=15s
+    ...                                      error=\nNew Password Textbox Does Not Show Up!
+    SL.Input Password                        xpath=//input[@name="inPassword"]              ${wrong_password}
+    SL.Wait Until Element Is Visible         xpath=//input[@name="pwdCfm"]
+    ...                                      timeout=10s
+    ...                                      error=\nConfirm New Password Textbox Does Not Show Up!
+    SL.Input Password                        xpath=//input[@name="pwdCfm"]                  ${wrong_password}
+    SL.Wait Until Element Is Visible         xpath=//input[@value="Apply/Save"]
+    ...                                      timeout=10s
+    ...                                      error=\nApply Save Button Does Not Show Up!
+    SL.Click Button                          xpath=//input[@value="Apply/Save"]
+    SL.Wait Until Page Contains              Password change failed          timeout=10s       error=\nMesage Password change failed Does Not Show Up!
+    SL.Page Should Contain                   Password change failed
+
+    #Click Back Button
+    SL.Wait Until Element Is Visible          xpath=//input[@type="button"]
+    ...                                       timeout=10s
+    ...                                       error=\nBack Button Does Not Show Up!
+    SL.Click Button                           xpath=//input[@type="button"]
+
+    SL.Wait Until Page Contains               Access Control -- Passwords
+    ...                                       timeout=10s
+    ...                                       error=\nChange Password Page Does Not Show Up!
+    SL.Page Should Contain                    Access Control -- Passwords
+    SL.Unselect Frame
+
+    ##  Step 6.3: Change pass with block password
+    Log To Console                           \nStep 6.3: Change pass with block password
+    SL.Wait Until Element Is Visible         xpath=//input[@name="inUserName"]
+    ...                                      timeout=10s
+    ...                                      error=\nUsername Textbox Does Not Show Up!
+    SL.Input Text                            xpath=//input[@name="inUserName"]              ${username}
+    SL.Wait Until Element Is Visible         xpath=//input[@name="inOrgPassword"]
+    ...                                      timeout=10s
+    ...                                      error=\nOld Password Textbox Does Not Show Up!
+    SL.Input Password                        xpath=//input[@name="inOrgPassword"]           ${ori_password}
+    SL.Wait Until Element Is Visible         xpath=//input[@name="inPassword"]
+    ...                                      timeout=10s
+    ...                                      error=\nNew Password Textbox Does Not Show Up!
+    SL.Input Password                        xpath=//input[@name="inPassword"]              ${block_password}
+    SL.Wait Until Element Is Visible         xpath=//input[@name="pwdCfm"]
+    ...                                      timeout=10s
+    ...                                      error=\nConfirm New Password Textbox Does Not Show Up!
+    SL.Input Password                        xpath=//input[@name="pwdCfm"]                  ${block_password}
+    SL.Wait Until Element Is Visible         xpath=//input[@value="Apply/Save"]
+    ...                                      timeout=10s
+    ...                                      error=\nApply Save Button Does Not Show Up!
+    SL.Click Button                          xpath=//input[@value="Apply/Save"]
+    SL.Wait Until Page Contains              Password change failed          timeout=10s       error=\nMesage Password change failed Does Not Show Up!
+    SL.Page Should Contain                   Password change failed
+
+    #Click Back Button
+    SL.Wait Until Element Is Visible          xpath=//input[@type="button"]
+    ...                                       timeout=10s
+    ...                                       error=\nBack Button Does Not Show Up!
+    SL.Click Button                           xpath=//input[@type="button"]
+
+    SL.Wait Until Page Contains               Access Control -- Passwords
+    ...                                       timeout=10s
+    ...                                       error=\nChange Password Page Does Not Show Up!
+    SL.Page Should Contain                    Access Control -- Passwords
+    SL.Unselect Frame
+
+    ## Step 6.4: Change pass with valid password
+    Log To Console                           \nGo To Access Control Page
+    SL.Wait Until Page Contains              Access Control -- Passwords
+    ...                                      timeout=10s
+    ...                                      error=\nChange Password Page Does Not Show Up!
+
+    Log To Console                           \nStep 6.4: Change pass with valid password
+    SL.Wait Until Element Is Visible         xpath=//input[@name="inUserName"]
+    ...                                      timeout=10s
+    ...                                      error=\nUsername Textbox Does Not Show Up!
+    SL.Input Text                            xpath=//input[@name="inUserName"]              ${username}
+    SL.Wait Until Element Is Visible         xpath=//input[@name="inOrgPassword"]
+    ...                                      timeout=10s
+    ...                                      error=\nOld Password Textbox Does Not Show Up!
+    SL.Input Password                        xpath=//input[@name="inOrgPassword"]           ${ori_password}
+    SL.Wait Until Element Is Visible         xpath=//input[@name="inPassword"]
+    ...                                      timeout=10s
+    ...                                      error=\nNew Password Textbox Does Not Show Up!
+    SL.Input Password                        xpath=//input[@name="inPassword"]              ${ONT_WEB_PASS}
+    SL.Wait Until Element Is Visible         xpath=//input[@name="pwdCfm"]
+    ...                                      timeout=10s
+    ...                                      error=\nConfirm New Password Textbox Does Not Show Up!
+    SL.Input Password                        xpath=//input[@name="pwdCfm"]                  ${ONT_WEB_PASS}
+    SL.Wait Until Element Is Visible         xpath=//input[@value="Apply/Save"]
+    ...                                      timeout=10s
+    ...                                      error=\nApply Save Button Does Not Show Up!
+    SL.Click Button                          xpath=//input[@value="Apply/Save"]
+    SL.Wait Until Page Contains               Message
+    ...                                       timeout=20s
+    ...                                       error=\nMessage:Password change successful Does Not Found
+    SL.Click Button                           xpath=//input[@type='button']
+    SL.Unselect Frame
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+
+    Log To Console                           \nStep 7: Relogin web page ONT
+    ### Step 7.1: Relogin web page with old password
+    Log To Console                           \nStep 7.1: Relogin web page with old password
+    Input Username                           ${username}
+    Input User Password                      ${ori_password}
+    Submit Credentials
+    SL.Page Should Contain                   The username or password is incorrect
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+
+    ### Step 7.2: Relogin web page with correct password
+    Log To Console                           \nStep 7.2: Relogin web page with correct password
+    Input Username                           ${username}
+    Input User Password                      ${ONT_WEB_PASS}
+    Submit Credentials
+    Welcome Page Should Be Open
+
+    Log To Console                           \nStep 8: Reboot ONT via Web GUI
+    Run Keyword And Continue On Failure      Reboot Device Via Web GUI    reboot_url=http://${wan_ip_address}/resetrouter.html
+
+    SL.Go To                                 url=http://${wan_ip_address}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+
+    Log To Console                           \nStep 9: Relogin Web page ONT
+    ### Step 9.1: Relogin web page with old password
+    Log To Console                           \nStep 9.1: Relogin web page with old password
+    Input Username                           ${username}
+    Input User Password                      ${ori_password}
+    Submit Credentials
+    SL.Page Should Contain                   The username or password is incorrect
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+
+    ### Step 9.2: Relogin web page with correct password
+    Log To Console                           \nStep 9.2: Relogin web page with correct password
+    Input Username                           ${username}
+    Input User Password                      ${ONT_WEB_PASS}
+    Submit Credentials
+    Welcome Page Should Be Open
+    ### Logout operator account
+    Logout Page                              logout_url=http://${wan_ip_address}
+    ...                                      user=operator
+    SL.Delete All Cookies
+    SL.Close All Browsers
+
+    # [Teardown]    Run Keyword And Ignore Error     GW020BRC_FUNC_01_TC_02_Teardown    ${ori_password}     ${random_password}     ${wrong_password}      ${block_password}     ${new_password}
+
+# *** Test Cases ***
+# GW020BRC_FUNC_01_TC_02
+   # GW020BRC_FUNC_01_TC_02                 operator       oper@tor     12345678     ttcn@1234     ttcn@77CN      ttcn@88CN

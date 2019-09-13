@@ -1,0 +1,438 @@
+*** Settings ***
+Library                       AppiumLibrary   run_on_failure=AL.Capture Page Screenshot    WITH NAME    AL
+Resource                      ../../variables/AllVariables.txt
+
+
+*** Variables ***
+${settings_package_name}    com.android.settings
+${wifi_picker_activity}     com.android.settings.wifi.WifiPickerActivity
+
+*** Keywords ***
+
+
+Open Wifi Picker Activity
+    [Arguments]    ${remote_server}    ${remote_port}    ${platform}    ${version}    ${ue_device_name}
+
+    AL.Open Application     http://${remote_server}:${remote_port}/wd/hub
+    ...                     platformName=${platform}
+    ...                     platformVersion=${version}
+    ...                     deviceName=${ue_device_name}
+    ...                     appPackage=${settings_package_name}
+    ...                     appActivity=${wifi_picker_activity}
+    ...                     automationName=Appium
+    ...                     newCommandTimeout=0
+
+Turn On Wifi
+    AL.Wait Until Element Is Visible    xpath=//android.widget.Switch    timeout=30
+    ${wifi_status} =    AL.Get Text     xpath=//android.widget.Switch
+    Run Keyword If    "${wifi_status}" == "OFF"    AL.Click Element      xpath=//android.widget.Switch[@text="OFF"]
+
+Turn Off Wifi
+    AL.Wait Until Element Is Visible    xpath=//android.widget.Switch    timeout=30
+    ${wifi_status} =    AL.Get Text    xpath=//android.widget.Switch
+    Run Keyword If    '${wifi_status}' == 'ON'    AL.Click Element    xpath=//android.widget.Switch[@text="ON"]
+
+
+Check connect to wifi
+
+    [Arguments]    ${security_mode}    ${wifi_ssid}    ${wifi_password}=1234567890    ${wifi_wep_password}=1234567890123
+
+    Forget Wifi SSID Before Testcase
+    Check SSID Exist    wifi_ssid=${wifi_ssid}
+    AL.Click Element    xpath=//*[@text="${wifi_ssid}"]
+    Check click to Wifi SSID in security mode    ${wifi_ssid}
+    AL.Wait Until Element Is Visible    xpath=//android.widget.CheckBox[@text="Show password"]    timeout=20
+    AL.Click Element    xpath=//android.widget.CheckBox[@text="Show password"]
+    AL.Wait Until Element Is Visible    xpath=//android.widget.TextView[@text="${security_mode}"]    timeout=20
+    Run Keyword If    "${security_mode}" == "WEP"    AL.Input Text    xpath=//android.widget.EditText[contains(@resource-id,"password")]    ${wifi_wep_password}
+    ...         ELSE    AL.Input Text    xpath=//android.widget.EditText[contains(@resource-id,"password")]    ${wifi_password}
+    AL.Wait Until Element Is Visible    xpath=//android.widget.Button[@text="Connect"]    timeout=20
+    AL.Click Element    xpath=//android.widget.Button[@text="Connect"]
+    Turn Off Wifi
+    Sleep    0.5
+    Turn On Wifi
+    AL.Wait Until Element Is Visible    xpath=//*[contains(@text,"Connected")]    timeout=60
+    Verify Granted Ip Address
+    log    Connect successfully to Wifi SSID    console=true
+    AL.Wait Until Element Is Visible    xpath=//*[@text="${wifi_ssid}"]    timeout=20
+    AL.Click Element    xpath=//*[@text="${wifi_ssid}"]
+
+Check connect to wifi without authentication
+    [Arguments]    ${wifi_ssid}
+    Forget Wifi SSID Before Testcase
+    Check SSID Exist    wifi_ssid=${wifi_ssid}
+    #Forget Wifi SSID Before Testcase
+    AL.Click Element    xpath=//*[@text="${wifi_ssid}"]
+    Check click to Wifi SSID in open mode    ${wifi_ssid}
+    AL.Wait Until Element Is Visible    xpath=//*[contains(@text,"Connected")]    timeout=60
+    Verify Granted Ip Address
+    log    Connect successfully to Wifi SSID    console=true
+    AL.Wait Until Element Is Visible    xpath=//*[@text="${wifi_ssid}"]    timeout=20
+    AL.Click Element    xpath=//*[@text="${wifi_ssid}"]
+
+Check connect to wifi and get ip address
+    [Documentation]      Connect to wifi and get ip address if connect successfully
+    ...                  Input:
+    ...                  1. ${security_mode}: wifi security mode
+    ...                  2. ${wifi_ssid}:
+    ...                  3. ${wifi_password}:
+    ...                  4. ${wifi_wep_password}: wifi password for shared:
+
+    [Arguments]    ${security_mode}    ${wifi_ssid}    ${wifi_password}=1234567890    ${wifi_wep_password}=1234567890123
+    Forget Wifi SSID Before Testcase
+    Check SSID Exist    wifi_ssid=${wifi_ssid}
+    AL.Click Element    xpath=//*[@text="${wifi_ssid}"]
+    Check click to Wifi SSID in security mode    ${wifi_ssid}
+    AL.Wait Until Element Is Visible    xpath=//android.widget.CheckBox[@text="Show password"]    timeout=20
+    AL.Click Element                    xpath=//android.widget.CheckBox[@text="Show password"]
+    AL.Wait Until Element Is Visible    xpath=//android.widget.TextView[@text="${security_mode}"]    timeout=20
+    Run Keyword If    "${security_mode}" == "WEP"    AL.Input Text    xpath=//android.widget.EditText[contains(@resource-id,"password")]    ${wifi_wep_password}
+    ...         ELSE    AL.Input Text    xpath=//android.widget.EditText[contains(@resource-id,"password")]    ${wifi_password}
+    AL.Wait Until Element Is Visible    xpath=//android.widget.Button[@text="Connect"]    timeout=60
+    AL.Click Element    xpath=//android.widget.Button[@text="Connect"]
+    Turn Off Wifi
+    Sleep    0.5
+    Turn On Wifi
+    AL.Wait Until Element Is Visible    xpath=//*[contains(@text,"Connected")]    timeout=60
+    ${granted_ip_address}=     Get Granted Ip Address
+    AL.Page Should Contain Element      xpath=//android.widget.ImageButton[@content-desc="Navigate up"]
+    AL.Click Element    xpath=//android.widget.ImageButton[@content-desc="Navigate up"]
+    log    Connect successfully to Wifi SSID    console=true
+    AL.Wait Until Element Is Visible    xpath=//*[@text="${wifi_ssid}"]    timeout=20
+    AL.Click Element                    xpath=//*[@text="${wifi_ssid}"]
+    [Return]                            ${granted_ip_address}
+
+Check connect to wifi without authentication and get ip address
+    [Documentation]      Connect to open wifi and get ip address if connect successfully
+    ...                  Input:
+    ...                  1. ${security_mode}: wifi security mode
+    ...                  2. ${wifi_ssid}:
+
+    [Arguments]                         ${wifi_ssid}
+    Forget Wifi SSID Before Testcase
+    Check SSID Exist                    wifi_ssid=${wifi_ssid}
+    #Forget Wifi SSID Before Testcase
+    AL.Click Element                    xpath=//*[@text="${wifi_ssid}"]
+    Check click to Wifi SSID in open mode    ${wifi_ssid}
+    AL.Wait Until Element Is Visible    xpath=//*[contains(@text,"Connected")]    timeout=60
+    ${granted_ip_address}=              Get Granted Ip Address
+    AL.Page Should Contain Element      xpath=//android.widget.ImageButton[@content-desc="Navigate up"]
+    AL.Click Element                    xpath=//android.widget.ImageButton[@content-desc="Navigate up"]
+    log    Connect successfully to Wifi SSID    console=true
+    AL.Wait Until Element Is Visible    xpath=//*[@text="${wifi_ssid}"]    timeout=20
+    AL.Click Element                    xpath=//*[@text="${wifi_ssid}"]
+    [Return]      ${granted_ip_address}
+
+Check click to Wifi SSID in open mode
+    [Arguments]    ${wifi_ssid}
+    :FOR     ${i}    IN RANGE    9999
+    \     ${Check_mode}=    Run Keyword And Return Status    AL.Wait Until Element Is Visible     xpath=//android.widget.TextView[contains(@resource-id,"alertTitle")]    timeout=1
+    \     Run Keyword IF    ${Check_mode}    AL.Click Element    xpath=//android.widget.Button[@text="Cancel"]
+          ...         ELSE    Exit for loop in open mode    ${wifi_ssid}
+    \     Check SSID Exist    wifi_ssid=${wifi_ssid}
+    \     AL.Click Element    xpath=//*[@text="${wifi_ssid}"]
+
+Check click to Wifi SSID in security mode
+    [Arguments]    ${wifi_ssid}
+    :FOR     ${i}    IN RANGE    9999
+    \    ${Check_mode}=    Run Keyword And Return Status    AL.Wait Until Element Is Visible     xpath=//android.widget.TextView[contains(@resource-id,"alertTitle")]    timeout=1
+    \    Run Keyword IF    ${Check_mode}    Exit for loop in security mode    ${wifi_ssid}
+    \    AL.Wait Until Element Is Visible    xpath=//*[@text="${wifi_ssid}"]    timeout=20
+    \    AL.Click Element    xpath=//*[@text="${wifi_ssid}"]
+
+Exit for loop in open mode
+    [Arguments]    ${wifi_ssid}
+    Turn Off Wifi
+    Sleep    0.5
+    Turn On Wifi
+    AL.Wait Until Element Is Visible         xpath=//android.widget.LinearLayout[contains(@index,"0")]//android.widget.RelativeLayout[contains(@index,"1")]//android.widget.TextView[contains(@index,"0")]    timeout=20s
+    ${SSID_connect_name}=     AL.Get Text    xpath=//android.widget.LinearLayout[contains(@index,"0")]//android.widget.RelativeLayout[contains(@index,"1")]//android.widget.TextView[contains(@index,"0")]
+    Exit For Loop If    "${SSID_connect_name}" == "${wifi_ssid}"
+
+Exit for loop in security mode
+    [Arguments]    ${wifi_ssid}
+    ${SSID_connect_name}=    AL.Get Text    xpath=//android.widget.TextView[contains(@resource-id,"alertTitle")]
+    Exit For Loop If    "${SSID_connect_name}" == "${wifi_ssid}"
+    AL.Click Element    xpath=//android.widget.Button[@text="Cancel"]
+
+Forget Wifi SSID
+    ${forget_button} =    Set Variable    xpath=//android.widget.Button[contains(@text, "Forget")]
+    AL.Wait Until Element Is Visible    ${forget_button}    timeout=10    error=\nButton "Forget" Not Found
+    AL.Click Element    ${forget_button}
+
+Forget Wifi SSID Action
+    [Arguments]    ${Connect_status}
+    AL.Click Element    xpath=//*[contains(@text,"${Connect_status}")]
+    Forget Wifi SSID
+
+Forget Wifi SSID Before Testcase
+    #AL.Wait Until Element Is Visible    xpath=//*[@text="${WIFI_SSID}"]    timeout=15
+    :FOR   ${i}    IN RANGE    9999
+    \    ${Check_saved_ssid}=     Run Keyword And Return Status    AL.Wait Until Element Is Visible    xpath=//*[contains(@text,"Saved")]    timeout=5
+    \    Exit For Loop If    not ${Check_saved_ssid}
+    \    Run Keyword If    ${Check_saved_ssid}    Forget Wifi SSID Action    Saved
+    Sleep    5
+    ${Check_connected_ssid}=    Run Keyword And Return Status    AL.Wait Until Element Is Visible    xpath=//*[contains(@text,"Connected")]    timeout=5
+    Run Keyword If    ${Check_connected_ssid}    Forget Wifi SSID Action    Connected
+
+Verify Granted Ip Address
+    ${granted_ip_address}=            Get Granted Ip Address
+    AL.Page Should Contain Element    xpath=//android.widget.ImageButton[@content-desc="Navigate up"]
+    AL.Click Element                  xpath=//android.widget.ImageButton[@content-desc="Navigate up"]
+
+## QuangNL Add
+Forget All Saved Networks
+    [Documentation]      Forget all saved networks
+    AL.Wait Until Page Contains Element    xpath=//android.widget.ImageButton[@content-desc=\"More options\"]    timeout=30
+    AL.Click Element    xpath=//android.widget.ImageButton[@content-desc=\"More options\"]
+    ${forgot}=    Run Keyword And Return Status    AL.Wait Until Page Contains Element    xpath=//android.widget.TextView[contains(@text, "Saved networks")]    timeout=30
+    Run Keyword If    ${forgot} == False     Log To Console    All network have been forgotten
+    Return From Keyword If     ${forgot} == False      All network have been forgotten
+    AL.Click Element    xpath=//android.widget.TextView[contains(@text, "Saved networks")]
+    AL.Wait Until Page Contains Element    xpath=//android.widget.TextView[contains(@text, "Saved networks")]    timeout=30
+
+    :FOR     ${i}    IN RANGE     9999
+    \       ${success}=     Run Keyword And Return Status     AL.Wait Until Page Contains Element    xpath=(//android.widget.ListView[@resource-id="android:id/list"]/android.widget.LinearLayout)[1]   timeout=10
+    \       Exit For Loop If     ${success} == False
+    \       AL.Click Element       xpath=(//android.widget.ListView[@resource-id="android:id/list"]/android.widget.LinearLayout)[1]
+    \       AL.Wait Until Page Contains Element    xpath=//android.widget.Button[@resource-id="android:id/button3"]   timeout=15s
+    \       AL.Click Element        xpath=//android.widget.Button[@resource-id="android:id/button3"]
+    # \       AL.Wait Until Page Contains Element    xpath=//android.widget.Button[@resource-id="android:id/button2"]   timeout=15s
+    # \       AL.Click Element        xpath=//android.widget.Button[@resource-id="android:id/button2"]
+    \       Sleep   1s
+
+    AL.Wait Until Page Contains Element    xpath=//android.widget.ImageButton[@content-desc="Navigate up"]    timeout=15s
+    AL.Click Element        xpath=//android.widget.ImageButton[@content-desc="Navigate up"]
+
+Add Network
+    [Documentation]     Add network
+    [Arguments]         ${wifi_ssid}     ${wifi_security}=WPA/WPA2 PSK    ${wifi_password}=1234567890    ${status}=Connected
+
+    ${existed}=   Run Keyword And Return Status    AL.Wait Until Page Contains Element    xpath=//android.widget.TextView[contains(@text, "Add network")]    timeout=15
+    Run Keyword If    ${existed} == False    AL.Wait Until Page Contains Element    xpath=//android.widget.ImageButton[@content-desc=\"More options\"]    timeout=30
+    Run Keyword If    ${existed} == False    AL.Click Element    xpath=//android.widget.ImageButton[@content-desc=\"More options\"]
+    AL.Wait Until Page Contains Element    xpath=//android.widget.TextView[contains(@text, "Add network")]    timeout=15
+    AL.Click Element    xpath=//android.widget.TextView[contains(@text, "Add network")]
+    # Input SSID
+    AL.Wait Until Page Contains Element    xpath=//android.widget.EditText[contains(@text, "Enter the SSID")]   timeout=30
+    AL.Input Text       xpath=//android.widget.EditText[contains(@text, "Enter the SSID")]    ${wifi_ssid}
+    # Select security
+    AL.Wait Until Page Contains Element    xpath=//android.widget.Spinner[@resource-id="com.android.settings:id/security"]   timeout=30
+    AL.Click Element    xpath=//android.widget.Spinner[@resource-id="com.android.settings:id/security"]
+    AL.Wait Until Page Contains Element    xpath=//android.widget.CheckedTextView[contains(@text, "${wifi_security}")]    timeout=30
+    AL.Click Element    xpath=//android.widget.CheckedTextView[contains(@text, "${wifi_security}")]
+    # Fillup password
+    Run Keyword If    '${wifi_security}' != 'None'      AL.Wait Until Page Contains Element    xpath=//android.widget.CheckBox[@resource-id="com.android.settings:id/show_password"]   timeout=30
+    Run Keyword If    '${wifi_security}' != 'None'      AL.Click Element    xpath=//android.widget.CheckBox[@resource-id="com.android.settings:id/show_password"]
+    Run Keyword If    '${wifi_security}' != 'None'      AL.Wait Until Page Contains Element    xpath=//android.widget.EditText[@resource-id="com.android.settings:id/password"]    timeout=30
+    Run Keyword If    '${wifi_security}' != 'None'      AL.Input Text       xpath=//android.widget.EditText[@resource-id="com.android.settings:id/password"]    ${wifi_password}
+    # Save
+    AL.Wait Until Page Contains Element    xpath=//android.widget.Button[@resource-id="android:id/button1"]
+    AL.Click Element    xpath=//android.widget.Button[@resource-id="android:id/button1"]
+
+    # Wait until connected
+    # AL.Wait Until Element Is Visible    //android.widget.TextView[@text="Connected"]    timeout=90
+    AL.Wait Until Page Contains           ${status}        timeout=150
+    # Verify Granted Ip Address
+
+Forget Saved Network And Add Network
+    [Arguments]         ${wifi_ssid}     ${wifi_security}=WPA/WPA2 PSK    ${wifi_password}=1234567890    ${status}=Connected
+    Forget All Saved Networks
+    Add Network         wifi_ssid=${wifi_ssid}    wifi_security=${wifi_security}    wifi_password=${wifi_password}    status=${status}
+
+#####################################################
+############## Connect to hidden ssid ###############
+#####################################################
+
+Add hidden network
+    [Arguments]    ${wifi_ssid}    ${wifi_password}=1234567890
+    Sleep    5
+    Forget Wifi SSID Before Testcase
+    AL.Wait Until Element Is Visible    xpath=//android.widget.ImageButton[@content-desc="More options"]     timeout=20
+    AL.Click Element                    xpath=//android.widget.ImageButton[@content-desc="More options"]
+    AL.Wait Until Element Is Visible    xpath=//android.widget.TextView[@text="Add network"]    timeout=20
+    AL.Click Element    xpath=//android.widget.TextView[@text="Add network"]
+    AL.Wait Until Element Is Visible    xpath=//*[@text="Enter the SSID"]    timeout=10
+    AL.Input Text                       xpath=//*[@text="Enter the SSID"]    ${wifi_ssid}
+    AL.Click Element                    xpath=//android.widget.TextView[@text="None"]
+    AL.Wait Until Element Is Visible    xpath=//android.widget.CheckedTextView[@text="WPA/WPA2 PSK"]    timeout=20
+    AL.Click Element                    xpath=//android.widget.CheckedTextView[@text="WPA/WPA2 PSK"]
+    AL.Wait Until Element Is Visible    xpath=//android.widget.CheckBox[@text="Show password"]    timeout=20
+    AL.Click Element                    xpath=//android.widget.CheckBox[@text="Show password"]
+    AL.Input Text                       xpath=//android.widget.EditText[contains(@resource-id,"password")]    ${wifi_password}
+    AL.Wait Until Element Is Visible    xpath=//android.widget.Button[@text="Save" and contains(@enabled,"true")]    timeout=10
+    AL.Click Element                    xpath=//android.widget.Button[@text="Save" and contains(@enabled,"true")]
+    AL.Wait Until Element Is Visible    xpath=//*[contains(@text,"Connected")]    timeout=60
+    Verify Granted Ip Address
+    log    Connect successfully to Wifi SSID    console=true
+    AL.Wait Until Element Is Visible    xpath=//*[@text="${wifi_ssid}"]    timeout=20
+    AL.Click Element                    xpath=//*[@text="${wifi_ssid}"]
+
+Check SSID Exist
+    [Documentation]                       Check ssid exist when scan wifi ssid on smartphone vivas lotus S3
+
+    [Arguments]                           ${wifi_ssid}
+    :FOR    ${i}    IN RANGE    20
+    \    Log To console            ${i}
+    \    ${Check_ssid_show_up}=    Run Keyword And Return Status    AL.Wait Until Element Is Visible    xpath=//*[@text="${wifi_ssid}"]    timeout=5
+    \    Exit For Loop If          ${Check_ssid_show_up}
+    \    AL.Swipe By Percent    50      90      50      70
+    \    Run Keyword If    ${i} == ${19}    Fail    \nWifi SSID does not exsit\n
+
+
+Get Granted Ip Address
+    [Documentation]    Get granted ip address after connect successfully
+
+    AL.Wait Until Element Is Visible    xpath=//android.widget.ImageButton[@content-desc="More options"]     timeout=20
+    AL.Click Element                    xpath=//android.widget.ImageButton[@content-desc="More options"]
+    AL.Wait Until Element Is Visible    xpath=//android.widget.TextView[@text="Advanced"]    timeout=20
+    AL.Click Element                    xpath=//android.widget.TextView[@text="Advanced"]
+    AL.Wait Until Element Is Visible    xpath=//android.widget.TextView[@text="IPv4 address"]    timeout=20
+    ${granted_ip_address}=     AL.Get Text    xpath=//android.widget.LinearLayout[@index="7"]//android.widget.RelativeLayout[@index="0"]//android.widget.TextView[@index="1"]
+    ${check_received_ip}=                     Run Keyword And Return Status
+    ...                                       Should Match Regexp    ${granted_ip_address}    ^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$
+    Run Keyword If                            not ${check_received_ip}    Fail    \nCannot received ip address\n
+    ${granted_ip_address}=                    Should Match Regexp    ${granted_ip_address}    ^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$
+
+    [Return]              ${granted_ip_address}
+
+Get Mac Address
+    AL.Wait Until Element Is Visible    xpath=//android.widget.ImageButton[@content-desc="More options"]     timeout=20
+    AL.Click Element                    xpath=//android.widget.ImageButton[@content-desc="More options"]
+    AL.Wait Until Element Is Visible    xpath=//android.widget.TextView[@text="Advanced"]    timeout=20
+    AL.Click Element                    xpath=//android.widget.TextView[@text="Advanced"]
+    AL.Wait Until Element Is Visible    xpath=//android.widget.TextView[@text="MAC address"]    timeout=20
+    ${mac_address}=     AL.Get Text     xpath=//android.widget.LinearLayout[@index="6"]//android.widget.RelativeLayout[@index="0"]//android.widget.TextView[@index="1"]
+    Should Match Regexp                 ${mac_address}    ^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$
+    AL.Wait Until Page Contains Element    xpath=//android.widget.ImageButton[@content-desc="Navigate up"]    timeout=15s
+    AL.Click Element                    xpath=//android.widget.ImageButton[@content-desc="Navigate up"]
+    [Return]                            ${mac_address}
+
+Verify UE device connected to WiFi_mode Open
+
+    [Arguments]                             ${wifi_ssid}
+    Log To Console                          \nVerify UE device connected to WiFi ${wifi_ssid}
+    Open Wifi Picker Activity               remote_server=${APPIUM_REMOTE_SERVER}
+    ...                                     remote_port=${APPIUM_REMOTE_PORT}
+    ...                                     platform=${PLATFORM_NAME}
+    ...                                     version=${PLATFORM_VERSION}
+    ...                                     ue_device_name=${DEVICE_NAME}
+    Turn On Wifi
+    ${ip}=                                  Check connect to wifi without authentication and get ip address        wifi_ssid=${wifi_ssid}
+    Should Contain                          ${ip}           ${ONT_SUBNET}
+#    Log To Console                          \nVerify Ping to 192.168.1.1
+    ########Chua lam???????????????#######
+
+
+
+Verify UE device connected to WiFi_mode Security
+    [Arguments]                             ${wifi_ssid}   ${security_mode}   ${wifi_password}=1234567890    ${wifi_wep_password}=1234567890123
+    Log To Console                          \nVerify UE device connected to WiFi ${wifi_ssid}
+    Open Wifi Picker Activity               remote_server=${APPIUM_REMOTE_SERVER}
+    ...                                     remote_port=${APPIUM_REMOTE_PORT}
+    ...                                     platform=${PLATFORM_NAME}
+    ...                                     version=${PLATFORM_VERSION}
+    ...                                     ue_device_name=${DEVICE_NAME}
+    Turn On Wifi
+    ${ip}=                                  Check connect to wifi and get ip address   ${security_mode}   ${wifi_ssid}   ${wifi_password}   ${wifi_wep_password}
+    Should Contain                          ${ip}           ${ONT_SUBNET}
+
+
+Forget Saved Network And Add Network_GW020_TC_12
+    [Arguments]         ${wifi_ssid}     ${wifi_security}=WPA/WPA2 PSK    ${wifi_password}=1234567890
+    Forget All Saved Networks
+    Add Network_GW020_TC_12         wifi_ssid=${wifi_ssid}    wifi_security=${wifi_security}    wifi_password=${wifi_password}
+
+
+
+Add Network_GW020_TC_12
+    [Documentation]     Add network
+    [Arguments]         ${wifi_ssid}     ${wifi_security}=WPA/WPA2 PSK    ${wifi_password}=1234567890
+
+    ${existed}=   Run Keyword And Return Status    AL.Wait Until Page Contains Element    xpath=//android.widget.TextView[contains(@text, "Add network")]    timeout=15
+    Run Keyword If    ${existed} == False    AL.Wait Until Page Contains Element    xpath=//android.widget.ImageButton[@content-desc=\"More options\"]    timeout=30
+    Run Keyword If    ${existed} == False    AL.Click Element    xpath=//android.widget.ImageButton[@content-desc=\"More options\"]
+    AL.Wait Until Page Contains Element    xpath=//android.widget.TextView[contains(@text, "Add network")]    timeout=15
+    AL.Click Element    xpath=//android.widget.TextView[contains(@text, "Add network")]
+    # Input SSID
+    AL.Wait Until Page Contains Element    xpath=//android.widget.EditText[contains(@text, "Enter the SSID")]   timeout=30
+    AL.Input Text       xpath=//android.widget.EditText[contains(@text, "Enter the SSID")]    ${wifi_ssid}
+    # Select security
+    AL.Wait Until Page Contains Element    xpath=//android.widget.Spinner[@resource-id="com.android.settings:id/security"]   timeout=30
+    AL.Click Element    xpath=//android.widget.Spinner[@resource-id="com.android.settings:id/security"]
+    AL.Wait Until Page Contains Element    xpath=//android.widget.CheckedTextView[contains(@text, "${wifi_security}")]    timeout=30
+    AL.Click Element    xpath=//android.widget.CheckedTextView[contains(@text, "${wifi_security}")]
+    # Fillup password
+    Run Keyword If    '${wifi_security}' != 'None'      AL.Wait Until Page Contains Element    xpath=//android.widget.CheckBox[@resource-id="com.android.settings:id/show_password"]   timeout=30
+    Run Keyword If    '${wifi_security}' != 'None'      AL.Click Element    xpath=//android.widget.CheckBox[@resource-id="com.android.settings:id/show_password"]
+    Run Keyword If    '${wifi_security}' != 'None'      AL.Wait Until Page Contains Element    xpath=//android.widget.EditText[@resource-id="com.android.settings:id/password"]    timeout=30
+    Run Keyword If    '${wifi_security}' != 'None'      AL.Input Text       xpath=//android.widget.EditText[@resource-id="com.android.settings:id/password"]    ${wifi_password}
+    # Save
+    AL.Wait Until Page Contains Element    xpath=//android.widget.Button[@resource-id="android:id/button1"]
+    AL.Click Element    xpath=//android.widget.Button[@resource-id="android:id/button1"]
+
+    # Wait until connected, no Internet
+    AL.Wait Until Element Is Visible    //android.widget.TextView[@text="Connected, no Internet"]    timeout=120
+    # Verify Granted Ip Address
+
+
+
+Check connect to wifi_GW020_TC_12
+
+    [Arguments]    ${security_mode}    ${wifi_ssid}    ${wifi_password}=1234567890    ${wifi_wep_password}=1234567890123
+
+    Forget Wifi SSID Before Testcase
+    Check SSID Exist    wifi_ssid=${wifi_ssid}
+    AL.Click Element    xpath=//*[@text="${wifi_ssid}"]
+    Check click to Wifi SSID in security mode    ${wifi_ssid}
+    AL.Wait Until Element Is Visible    xpath=//android.widget.CheckBox[@text="Show password"]    timeout=20
+    AL.Click Element    xpath=//android.widget.CheckBox[@text="Show password"]
+    AL.Wait Until Element Is Visible    xpath=//android.widget.TextView[@text="${security_mode}"]    timeout=20
+    Run Keyword If    "${security_mode}" == "WEP"    AL.Input Text    xpath=//android.widget.EditText[contains(@resource-id,"password")]    ${wifi_wep_password}
+    ...         ELSE    AL.Input Text    xpath=//android.widget.EditText[contains(@resource-id,"password")]    ${wifi_password}
+    AL.Wait Until Element Is Visible    xpath=//android.widget.Button[@text="Connect, no Internet"]    timeout=20
+    AL.Click Element    xpath=//android.widget.Button[@text="Connect"]
+    Turn Off Wifi
+    Sleep    0.5
+    Turn On Wifi
+    AL.Wait Until Element Is Visible    xpath=//*[contains(@text,"Connected, no Internet")]    timeout=60
+    Verify Granted Ip Address
+    log    Connect successfully to Wifi SSID    console=true
+    AL.Wait Until Element Is Visible    xpath=//*[@text="${wifi_ssid}"]    timeout=20
+    AL.Click Element    xpath=//*[@text="${wifi_ssid}"]
+
+
+Add Network_GW020_TC_48
+    [Documentation]     Add network
+    [Arguments]         ${wifi_ssid}     ${wifi_security}=WPA/WPA2 PSK    ${wifi_password}=1234567890
+
+    ${existed}=   Run Keyword And Return Status    AL.Wait Until Page Contains Element    xpath=//android.widget.TextView[contains(@text, "Add network")]    timeout=15
+    Run Keyword If    ${existed} == False    AL.Wait Until Page Contains Element    xpath=//android.widget.ImageButton[@content-desc=\"More options\"]    timeout=30
+    Run Keyword If    ${existed} == False    AL.Click Element    xpath=//android.widget.ImageButton[@content-desc=\"More options\"]
+    AL.Wait Until Page Contains Element    xpath=//android.widget.TextView[contains(@text, "Add network")]    timeout=15
+    AL.Click Element    xpath=//android.widget.TextView[contains(@text, "Add network")]
+    # Input SSID
+    AL.Wait Until Page Contains Element    xpath=//android.widget.EditText[contains(@text, "Enter the SSID")]   timeout=30
+    AL.Input Text       xpath=//android.widget.EditText[contains(@text, "Enter the SSID")]    ${wifi_ssid}
+    # Select security
+    AL.Wait Until Page Contains Element    xpath=//android.widget.Spinner[@resource-id="com.android.settings:id/security"]   timeout=30
+    AL.Click Element    xpath=//android.widget.Spinner[@resource-id="com.android.settings:id/security"]
+    AL.Wait Until Page Contains Element    xpath=//android.widget.CheckedTextView[contains(@text, "${wifi_security}")]    timeout=30
+    AL.Click Element    xpath=//android.widget.CheckedTextView[contains(@text, "${wifi_security}")]
+    # Fillup password
+    Run Keyword If    '${wifi_security}' != 'None'      AL.Wait Until Page Contains Element    xpath=//android.widget.CheckBox[@resource-id="com.android.settings:id/show_password"]   timeout=30
+    Run Keyword If    '${wifi_security}' != 'None'      AL.Click Element    xpath=//android.widget.CheckBox[@resource-id="com.android.settings:id/show_password"]
+    Run Keyword If    '${wifi_security}' != 'None'      AL.Wait Until Page Contains Element    xpath=//android.widget.EditText[@resource-id="com.android.settings:id/password"]    timeout=30
+    Run Keyword If    '${wifi_security}' != 'None'      AL.Input Text       xpath=//android.widget.EditText[@resource-id="com.android.settings:id/password"]    ${wifi_password}
+    # Save
+    AL.Wait Until Page Contains Element    xpath=//android.widget.Button[@resource-id="android:id/button1"]
+    AL.Click Element    xpath=//android.widget.Button[@resource-id="android:id/button1"]
+
+    # Wait until Wi-Fi Connection Failure
+    AL.Wait Until Element Is Visible    //android.widget.TextView[@text="WiFi Connection Failure"]    timeout=120
+    # Verify Granted Ip Address
+
+Forget Saved Network And Add Network_GW020_TC_48
+    [Arguments]         ${wifi_ssid}     ${wifi_security}=WPA/WPA2 PSK    ${wifi_password}=1234567890
+    Forget All Saved Networks
+    Add Network_GW020_TC_48         wifi_ssid=${wifi_ssid}    wifi_security=${wifi_security}    wifi_password=${wifi_password}

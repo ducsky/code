@@ -1,0 +1,54 @@
+*** Settings ***
+Library                      SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library                      String             WITH NAME    STR
+Library                      Collections        WITH NAME    CL
+Library                      DateTime           WITH NAME    DT
+
+*** Variables ***
+${device_info_summary_url}              http://192.168.1.1/info.html
+
+*** Keywords ***
+Open Device Info Summary Page
+    SL.Go to                            ${device_info_summary_url}
+    SL.Wait Until Page Contains         Device Info
+    ...                                 timeout=10s
+    ...                                 error=\nOpen Device Info Summary Page did not show up
+    SL.Page Should Contain              Device Info
+
+Get Date Time From Device Info Page
+    [Documentation]                     Get time from device info page
+    ${time_from_device}=                SL.Get Text      xpath=//tr[13]/td[2]
+    ${word}=                            STR.Split String     ${time_from_device}
+    ${hour_minute}=                     STR.Get Substring    @{word}[3]     0  5
+    ${date_time_year_from_device}=      Set Variable     @{word}[0] @{word}[1] @{word}[2] ${hour_minute} @{word}[4]
+    Log To Console                      ${date_time_year_from_device}
+    [Return]                            ${date_time_year_from_device}
+
+Verify Internet Time
+    [Documentation]                      1.time: Time Zone: Default +07:00
+    ...                                  Get time Viet Nam from systeam computer , format : month date hour:minute year (Thu Nov 15 14:08:34 2018)
+    ...                                  %#d date non zero-padding on window ; %-d date non zero-padding on linux
+    [Arguments]                          ${time_zone}=+07:00
+    Open Device Info Summary Page
+    ${current_date}=                     DT.Get Current Date    UTC    result_format=%a %b %-d %H:%M %Y    increment=${time_zone}:00
+    ${time_device}=                      Get Date Time From Device Info Page
+    Should Be Equal                      ${time_device}    ${current_date}    
+    Log To Console                       Time Is Correct
+
+Get Uptime From Device Info Page
+    [Documentation]                     Get uptime from device info
+    ...                                 Store in array [minute,hour,day]
+    ${uptime_from_device_info}=         SL.Get Text   xpath=//table[2]/tbody/tr[5]/td[2]
+    ${uptime_from_device_info_array}=   STR.Get Regexp Matches    ${uptime_from_device_info}    [0-9]+
+    ${uptime_array}=                    Set Variable    @{uptime_from_device_info_array}[${2}]
+    ...                                                 @{uptime_from_device_info_array}[${1}]
+    ...                                                 @{uptime_from_device_info_array}[${0}]
+    [return]                            ${uptime_array}
+
+Get DNS Server From Device Info Page
+    [Documentation]                     Get dns server from device info page
+    ${dns_server}=                      Set Variable     None
+    ${primary_dns}=                     SL.Get Text          xpath=/html/body/blockquote/form/table[3]/tbody/tr[10]/td[2]
+    ${secondary_dns}=                   SL.Get Text          xpath=/html/body/blockquote/form/table[3]/tbody/tr[11]/td[2]
+    ${dns_server}=                      Set Variable         ${primary_dns}\n${secondary_dns}
+    [Return]                            ${dns_server}

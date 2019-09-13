@@ -1,0 +1,324 @@
+*** Settings ***
+Library                          SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+
+*** Variables ***
+${device_info_wan_page}          http://192.168.1.1/wancfg.cmd?action=view
+
+*** Keywords ***
+Open Device Info Wan Page
+    [Documentation]              Input another url for operator user, else use default.
+
+    [Arguments]                  ${url}=${device_info_wan_page}
+
+    SL.Go To                     ${url}
+    SL.Wait Until Page Contains  WAN Info
+    ...                          timeout=10s
+    ...                          error=\nDevice Info Wan Page Not Found
+    SL.Page Should Contain       WAN Info
+
+###
+Get Column Index
+    [Documentation]             Get column index base on column name.
+    ...                         Input:
+    ...                         1. column_name
+    ...                         Return:
+    ...                         1. Column index if found, else return 'None'
+
+    [Arguments]                 ${column_name}
+
+    ${index}=                   Set Variable     None
+    SL.Set Selenium Speed       0.1
+    :FOR     ${i}     IN RANGE      1     20
+    \        ${element_is_visible}=    Run Keyword And Return Status       SL.Element Should Be Visible    xpath=//table[@class="wholetable"]/tbody/tr[1]/td[${i}]
+    \        Exit For Loop If    '${element_is_visible}' == 'False'
+    \        ${column_name_tmp}=       SL.Get Text    xpath=//table[@class="wholetable"]/tbody/tr[1]/td[${i}]
+    #\        Log To Console     Column Name Tmp= ${column_name_tmp}
+    \        ${index}=          Set Variable If    '${column_name_tmp}' == '${column_name}'     ${i}
+    \        Exit For Loop If   '${column_name_tmp}' == '${column_name}'
+    SL.Set Selenium Speed       0.3
+    [Return]                    ${index}
+
+###
+Get Row Index
+    [Documentation]             Get row index base on column name and column value.
+    ...                         Input:
+    ...                         1. column_name
+    ...                         2. column_value
+    ...                         Return:
+    ...                         1. Row index if found, else return 'None'
+
+    [Arguments]                 ${column_name}   ${column_value}
+
+    ${index}=                   Set Variable     None
+    SL.Set Selenium Speed       0.1
+    ${column_index_tmp}=        SeleniumDeviceInfoWanLib.Get Column Index            ${column_name}
+    :FOR    ${row_i}     IN RANGE   2     20
+    \       ${element_is_visible}=    Run Keyword And Return Status       SL.Element Should Be Visible    xpath=//table[@class="wholetable"]/tbody/tr[${row_i}]/td[4]
+    \       Exit For Loop If    '${element_is_visible}' == 'False'
+    \       ${column_value_tmp}=     SL.Get Text     xpath=//table[@class="wholetable"]/tbody/tr[${row_i}]/td[${column_index_tmp}]
+    #\       Log To Console      ${column_value_tmp}
+    \       ${index}=           Set Variable If     '${column_value_tmp}' == '${column_value}'    ${row_i}
+    \       Exit For Loop If    '${column_value_tmp}' == '${column_value}'
+    SL.Set Selenium Speed       0.3
+    [Return]                    ${index}
+
+###
+Get Cell Value
+    [Documentation]             Get value of cell base on column name and row index.
+    ...                         If found, return cell value, else return 'None'
+    ...                         Input:
+    ...                         1. column_name
+    ...                         2. row_index
+    ...                         Return:
+    ...                         1. cell_value
+
+    [Arguments]                 ${column_name}       ${row_index}
+    ${cell_value}=              Set Variable         None
+
+    ${column_index_tmp}=        SeleniumDeviceInfoWanLib.Get Column Index    ${column_name}
+    Return From Keyword If      '${row_index}' == 'None'     None
+    ${cell_value_tmp}=          SL.Get Text     xpath=//table[@class="wholetable"]/tbody/tr[${row_index}]/td[${column_index_tmp}]
+    ${cell_value}=              Set Variable    ${cell_value_tmp}
+    [Return]                    ${cell_value}
+
+###
+Wan Status Should Be Connected
+    [Documentation]             Check WAN status whether it's connected, base on VLAN ID
+    ...                         Input:
+    ...                         1. vlan_id
+    ...                         Return:
+    ...                         Pass or Failed
+
+    [Arguments]                 ${vlan_id}
+
+    ${row_index}=               SeleniumDeviceInfoWanLib.Get Row Index    column_name=VlanMuxId    column_value=${vlan_id}
+    ${wan_status}=              SeleniumDeviceInfoWanLib.Get Cell Value   column_name=Status IPv4    row_index=${row_index}
+    Log To Console              Wan Status: ${wan_status}
+    Should Be Equal             '${wan_status}'    'Connected'
+
+###
+Wan Status Should Be Disconnected
+    [Documentation]             Check WAN status whether it's disconnected, base on VLAN ID
+    ...                         Input:
+    ...                         1. vlan_id
+    ...                         Return:
+    ...                         Pass or Failed
+
+    [Arguments]                 ${vlan_id}
+
+    ${row_index}=               SeleniumDeviceInfoWanLib.Get Row Index    column_name=VlanMuxId    column_value=${vlan_id}
+    ${wan_status}=              SeleniumDeviceInfoWanLib.Get Cell Value   column_name=Status IPv4   row_index=${row_index}
+    Log To Console              Wan Status: ${wan_status}
+    Should Be Equal             '${wan_status}'    'Disconnected'
+
+Check Wan Status
+    [Documentation]             Check WAN status by arguments, base on VLAN ID
+    ...                         Input:
+    ...                         1. vlan_id
+    ...                         2. desired_wan_stautus : Connected, Disconnected, Connecting
+    ...                         Return:
+    ...                         Pass or Failed
+    [Arguments]                 ${vlan_id}
+    ...                         ${desired_wan_status}=Connected
+    ${row_index}=               SeleniumDeviceInfoWanLib.Get Row Index    column_name=VlanMuxId    column_value=${vlan_id}
+    ${wan_status}=              SeleniumDeviceInfoWanLib.Get Cell Value   column_name=Status IPv4    row_index=${row_index}
+    Log To Console              Wan Status: ${wan_status}
+    Should Be Equal             '${wan_status}'    '${desired_wan_status}'
+###
+Get Wan Ip Address
+    [Documentation]             Get WAN ip address base on vlan id. If found return ip address, else return None
+    ...                         Input:
+    ...                         1. vlan_id
+    ...                         Return:
+    ...                         1. wan_ip_address
+
+    [Arguments]                 ${vlan_id}
+
+    ${wan_ip_address}=          Set Variable    None
+    ${row_index}=               SeleniumDeviceInfoWanLib.Get Row Index    column_name=VlanMuxId    column_value=${vlan_id}
+    ${wan_ip_address}=          Get Cell Value   column_name=IPv4 Address    row_index=${row_index}
+    Log To Console              WAN IP address: ${wan_ip_address}
+    [Return]                    ${wan_ip_address}
+
+###
+Get Wan IPv6 Address
+    [Documentation]             Get WAN ip address base on vlan id. If found return ip address, else return None
+    ...                         Input:
+    ...                         1. vlan_id
+    ...                         Return:
+    ...                         1. wan_ip_address
+
+    [Arguments]                 ${vlan_id}
+
+    ${wan_ipv6_address}=        Set Variable    None
+    ${row_index}=               SeleniumDeviceInfoWanLib.Get Row Index    column_name=VlanMuxId    column_value=${vlan_id}
+    Log To Console              ${row_index}
+    ${wan_ipv6_address}=        Get Cell Value   column_name=IPv6 Address    row_index=${row_index}
+    Log To Console              ${wan_ipv6_address}
+    Log To Console              WAN IP address: ${wan_ipv6_address}
+    [Return]                    ${wan_ipv6_address}
+
+###
+Get Wan Interface
+    [Documentation]             Get WAN Interface name base on Vlan ID. If found return name of interface, else return None
+    ...                         Input:
+    ...                         1. vlan_id
+    ...                         Return:
+    ...                         1. wan_interface
+
+    [Arguments]                 ${vlan_id}
+    ${wan_interface}=           Set Variable    None
+    ${row_index}=               SeleniumDeviceInfoWanLib.Get Row Index    column_name=VlanMuxId    column_value=${vlan_id}
+    ${wan_interface}=           Get Cell Value   column_name=Interface    row_index=${row_index}
+    [Return]                    ${wan_interface}
+
+###
+Wan Ip Address Should Not Be Equal
+    [Documentation]             Compare expected WAN IP address and existed WAN IP address base on VLAN ID. Should not match.
+    ...                         Input:
+    ...                         1. expected_wan_ip_address
+    ...                         2. vlan_id
+    [Arguments]                 ${expected_wan_ip_address}    ${vlan_id}
+    ${existed_wan_ip_address}=  Get Wan Ip Address    ${vlan_id}
+    Should Not Be Equal         ${expected_wan_ip_address}    ${existed_wan_ip_address}
+
+###
+Wan Ip Address Should Be Equal
+    [Arguments]                 ${expected_wan_ip_address}    ${vlan_id}
+    ${existed_wan_ip_address}=  Get Wan Ip Address    ${vlan_id}
+    Should Be Equal             ${expected_wan_ip_address}    ${existed_wan_ip_address}
+
+###
+Wan Ip Address Should Be Visible
+
+    [Arguments]                 ${vlan_id}
+
+    ${wan_ip_address}=          Get Wan Ip Address    ${vlan_id}
+    Should Match Regexp         ${wan_ip_address}    [0-9]{1,3}\\.+[0-9]{1,3}\\.+[0-9]{1,3}\\.+[0-9]{1,3}
+
+###
+Wan Ip Address Should Not Be Visible
+
+    [Arguments]                 ${vlan_id}
+
+    ${wan_ip_address}=          Get Wan Ip Address    ${vlan_id}
+    Should Not Match Regexp     ${wan_ip_address}     [0-9]{1,3}\\.+[0-9]{1,3}\\.+[0-9]{1,3}\\.+[0-9]{1,3}
+
+###
+Wan Connection Should Be Success
+    [Documentation]             Verify WAN is created successfully on web (status=Connected, get IP address)
+
+    [Arguments]                                       ${vlan_id}
+    Open Device Info Wan Page
+    Wan Status Should Be Connected                    vlan_id=${vlan_id}
+    Wan Ip Address Should Be Visible                  vlan_id=${vlan_id}
+
+###
+Wan Connection Should Be Failed
+
+
+    [Arguments]                 ${vlan_id}
+
+    Open Device Info Wan Page
+    Wan Status Should Be Disconnected                  vlan_id=${vlan_id}
+    Wan Ip Address Should Not Be Visible               vlan_id=${vlan_id}
+
+Disconnect WAN
+    [Arguments]                          ${vlan_id}
+    ${row_index}=                        SeleniumDeviceInfoWanLib.Get Row Index    column_name=VlanMuxId    column_value=${vlan_id}
+    ${column_index}=                     SeleniumDeviceInfoWanLib.Get Column Index            Action
+    SL.Page Should Contain Element       xpath=//tr[${row_index}]/td[${column_index}]/input[@value="Disconnect"]
+    SL.Click Element                     xpath=//tr[${row_index}]/td[${column_index}]/input[@value="Disconnect"]
+    Sleep                                5
+
+Connect WAN
+    [Arguments]                          ${vlan_id}
+    ${row_index}=                        SeleniumDeviceInfoWanLib.Get Row Index    column_name=VlanMuxId    column_value=${vlan_id}
+    ${column_index}=                     SeleniumDeviceInfoWanLib.Get Column Index            Action
+    SL.Page Should Contain Element       xpath=//tr[${row_index}]/td[${column_index}]/input[@value="Connect"]
+    SL.Click Element                     xpath=//tr[${row_index}]/td[${column_index}]/input[@value="Connect"]
+    Sleep                                5
+
+Counting Number Exist WAN
+    ${row_number}=                       Set Variable    ${0}
+    :FOR                                 ${i}    IN RANGE    1    9999
+    \    ${check_row_exist}=             Run Keyword And Return Status    SL.Page Should Contain Element
+    ...                                  xpath=//table[@class="wholetable"]/tbody/tr[${i}]
+    \    Exit For Loop If                not ${check_row_exist}
+    \    ${row_number}=                  Evaluate    ${row_number} + ${1}
+    ${row_number}=                       Evaluate    ${row_number} - ${1}
+    [Return]                             ${row_number}
+
+
+
+Save WAN Ip Address
+   [Arguments]                                       ${vlan_id}
+
+    # Delay before check
+    Open Device Info Wan Page
+    Wan Status Should Be Connected                    vlan_id=${vlan_id}
+    ${wan_ip_address}=                                Get Wan Ip Address    ${vlan_id}
+    [return]                                          ${wan_ip_address}
+
+
+
+###
+Firewall Status Should Be Enabled
+    [Documentation]             Check Firewall status whether it's enabled, base on VLAN ID
+    ...                         Input:
+    ...                         1. vlan_id
+    ...                         Return:
+    ...                         Enabled or Disabled
+
+    [Arguments]                 ${vlan_id}
+
+    ${row_index}=               SeleniumDeviceInfoWanLib.Get Row Index    column_name=VlanMuxId    column_value=${vlan_id}
+    ${firewall_status}=              SeleniumDeviceInfoWanLib.Get Cell Value   column_name=Firewall     row_index=${row_index}
+    Log To Console              Firewall Status: ${firewall_status}
+    Should Be Equal             '${firewall_status}'    'Enabled'
+
+###
+Firewall Status Should Be Disabled
+    [Documentation]             Check Firewall status whether it's enabled, base on VLAN ID
+    ...                         Input:
+    ...                         1. vlan_id
+    ...                         Return:
+    ...                         Enabled or Disabled
+
+    [Arguments]                 ${vlan_id}
+
+    ${row_index}=               SeleniumDeviceInfoWanLib.Get Row Index    column_name=VlanMuxId    column_value=${vlan_id}
+    ${firewall_status}=              SeleniumDeviceInfoWanLib.Get Cell Value   column_name=Firewall     row_index=${row_index}
+    Log To Console              Firewall Status: ${firewall_status}
+    Should Be Equal             '${firewall_status}'    'Disabled'
+
+
+###
+NAT Status Should Be Enabled
+    [Documentation]             Check NAT status whether it's enabled, base on VLAN ID
+    ...                         Input:
+    ...                         1. vlan_id
+    ...                         Return:
+    ...                         Enabled or Disabled
+
+    [Arguments]                 ${vlan_id}
+
+    ${row_index}=               SeleniumDeviceInfoWanLib.Get Row Index    column_name=VlanMuxId    column_value=${vlan_id}
+    ${nat_status}=              SeleniumDeviceInfoWanLib.Get Cell Value   column_name=NAT          row_index=${row_index}
+    Log To Console              NAT Status: ${nat_status}
+    Should Be Equal             '${nat_status}'    'Enabled'
+
+###
+NAT Status Should Be Disabled
+    [Documentation]             Check NAT status whether it's enabled, base on VLAN ID
+    ...                         Input:
+    ...                         1. vlan_id
+    ...                         Return:
+    ...                         Enabled or Disabled
+
+    [Arguments]                 ${vlan_id}
+
+    ${row_index}=               SeleniumDeviceInfoWanLib.Get Row Index    column_name=VlanMuxId    column_value=${vlan_id}
+    ${nat_status}=              SeleniumDeviceInfoWanLib.Get Cell Value   column_name=NAT          row_index=${row_index}
+    Log To Console              NAT Status: ${nat_status}
+    Should Be Equal             '${nat_status}'    'Disabled'

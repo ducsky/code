@@ -1,0 +1,130 @@
+*** Settings ***
+Library              SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library              SSHLibrary    WITH NAME    SSHL
+Resource             ssh/SshLib.txt
+Resource             selenium/Login/SeleniumLoginLib.txt
+Resource             selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource             selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource             selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessBasicLib.txt
+Resource             selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessSecurityLib.txt
+Resource             selenium/Management/Reboot/SeleniumManagementRebootLib.txt
+Resource             selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource             selenium/Management/SLIDConfig/SeleniumManagementSLIDConfigLib.txt
+Resource             variables/AllVariables.txt
+
+*** Variables ***
+${LOGIN_BUTTON}                                    xpath=//button[@class="loginBtn"]
+
+*** Keywords ***
+GW020BRC_FUNC_54_TC_01_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+
+GW020BRC_FUNC_54_TC_01
+    SL.Set Selenium Speed                    0.7
+    Set Test Message                        *HTML* <b>GW020BRC_FUNC_54_TC_01</b>
+    Log To Console                           Verify REBOOT Function
+    Log To Console                           \nStep 1.1: Log in to Browser and Remove existed WAN Service
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+
+    ###Create Wan PPPoE
+    Log To Console                           \nStep 1.2: Add WAN PPPoE\n
+    Open Network Settings Wan Page           url=${NETWORK_SETTINGS_WAN_URL}
+    Create New Wan PPPoE                     url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                      network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                                      priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                                      vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    ...                                      ppp_username=${CORRECT_PPP_USERNAME}
+    ...                                      ppp_password=${CORRECT_PPP_PASSWORD}
+    ...                                      routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                      wan_interface=${PPPOE_WAN_INTERFACE}
+
+    ##Verify WAN should success on web
+    Log To Console                           \nStep 1.3: Verify WAN should success on web
+    Wait Until Keyword Succeeds              5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+    ######Change Wifi SSID
+    Log To Console                          \nStep 1.4: Change Wifi SSID\n
+    Open Wireless Configure Page             wireless_configure_url=${WIRELESS_CONFIGURE_URL}
+	####Get original SSID
+    Log To Console                           \nStep 1.5: Get original SSIDs...
+    ${DEFAULT_SSID}=                         Get SSID
+    Set Suite Variable                       ${DEFAULT_SSID}
+
+    #####Change WiFi Name for Main SSID to '${WIFI_SSID_1}'
+    Log To Console                          \nStep 1.6: Change WiFi Name for Main SSID to '${WIFI_SSID_1}'
+    Name SSID                                ssid=${WIFI_SSID_1}
+
+    ################Verify PC Ping success to 8.8.8.8
+    ##Verify Ping to 8.8.8.8 should success
+    Open Connection And Login To Remote Machine    ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+
+    ${lan_interface}=                        SSHL.Execute Command    ifconfig | grep -B1 "inet addr:192.168" | awk '$1!="inet" && $1!="--" {print $1}'
+    Log To Console                           \nStep1.7:Verify Ping to 8.8.8.8 should success
+    Wait Until Keyword Succeeds              5x    1s    Ping Should Succeed    ping_address=${TO_GOOGLE}
+    ...                                      network_interface=${lan_interface}
+
+
+    ####Reboot ONT
+    Log To Console                           \nStep 2.1: Reboot ONT device
+    Reboot Device Via Web GUI Without Waiting
+
+    ## Verify Ping to 8.8.8.8 should failed
+    Log To Console                           \nStep 2.2: Verify Ping to 192.168.1.1 should failed
+    Wait Until Keyword Succeeds              120s    5s    Ping Should Failed    ping_address=${IP_GATEWAY}
+    ...                                      network_interface=${lan_interface}
+
+    Log To Console                           \nStep 3.1: Wait in 180s and Check Relogin to WEBGUI Successfully\n
+    Log To Console                           \nWaiting in 180s...
+    Sleep                                    180s
+    Log To Console                           \nCheck Relogin to WEBGUI Successfully\n
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           ${ONT_WEB_USER}
+    Input User Password                      ${ONT_WEB_PASS}
+    Submit Credentials
+    Welcome Page Should Be Open
+    Log To Console                           \nStep 3.2: Wait more 45 seconds and check WAN status\n
+    Wait Until Keyword Succeeds              5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+    ##Verify Ping to 8.8.8.8 should success
+    Log To Console                           \nStep1.5:Verify Ping to 8.8.8.8 should success
+    Wait Until Keyword Succeeds              5x    1s    Ping Should Succeed    ping_address=${TO_GOOGLE}
+    ...                                      network_interface=${lan_interface}
+
+    Log To Console                           \nStep 3.3: Check wifi ssid is still remaining\n
+    ${check_wifi_ssid}=                      Get SSID
+    Run Keyword If                           '${check_wifi_ssid}' != '${WIFI_SSID_1}'    Fail    \nssid must still remain\n
+
+    [Teardown]    Run Keyword And Ignore Error     GW020BRC_FUNC_54_TC_01_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_54_TC_01
+    # GW020BRC_FUNC_54_TC_01

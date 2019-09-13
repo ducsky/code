@@ -1,0 +1,97 @@
+*** Settings ***
+Library                                      SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL 
+Resource                                     selenium/Login/SeleniumLoginLib.txt
+Resource                                     selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource                                     selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource                                     selenium/Login/SeleniumLoginWithOperatorUserLib.txt
+Resource                                     selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessBasicLib.txt
+Resource                                     selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource                                     ssh/SshLib.txt
+Resource                                     variables/AllVariables.txt
+Resource                                     selenium/Diagnostics/DiagnosticsLAN/SeleniumDiagnosticsDiagnosticsLANLib.txt
+*** Variables ***
+${LOGIN_BUTTON}                              xpath=//button[@class="loginBtn"]
+${REMOTE_SELENIUM_SERVER}					 10.84.3.207
+*** Keywords ***
+GW020BRC_FUNC_50_TC_01_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${remote_selenium_server}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+
+GW020BRC_FUNC_50_TC_01
+    SL.Set Selenium Speed                    0.7
+    Set Test Message                        *HTML* <b>GW020BRC_FUNC_50_TC_01</b>      
+    Log To Console                          \nStep 1: Login to Wan Configure Page with account Admin\n
+    Login To Browser                        remote_selenium_server_tmp=${remote_selenium_server}
+    ...                                     url=${LOGIN_URL}
+    ...                                     username=${ONT_WEB_USER}
+    ...                                     password=${ONT_WEB_PASS}
+    ...                                     browser=${BROWSER}
+    Welcome Page Should Be Open
+
+    ####Disable wireless
+    Open Wireless Configure Page
+    Log To Console                           \nStep 1.2: Disable Wireless\n
+    Disable Wireless
+
+    ###############Check Diagnostics LAN
+    Log To Console                           \nStep 1.3: Check Diagnostics LAN when Wireless is Disable\n
+    Open Diagnostics LAN Page
+
+    #####Run Diagnostics Button
+    SL.Click Button                           xpath=//input[@value="Rerun Diagnostic Tests"]
+
+    Diagnostics LAN 1 Should Be Pass
+    Log To Console                           \n=> Checking your lan1 Connection successfull\n
+
+    Diagnostics LAN 2 Should Be Fail
+    Log To Console                           \n=> Checking your lan2 Connection successfull\n
+
+    Diagnostics Wireless Should Be Fail
+    Log To Console                           \n=> Checking your Wireless Connection successfull\n
+
+    Open Wireless Configure Page
+    Log To Console                           \nStep 1.4: Enable Wireless
+    Enable Wireless
+
+    ####Check Diagnostics LAN
+    Log To Console                           \nStep 1.6: Check Diagnostics LAN when Wireless is Enable\n
+    Open Diagnostics LAN Page
+
+    #####Run Diagnostics Button
+    Sleep                                     5s
+    SL.Click Button                           xpath=//input[@value="Rerun Diagnostic Tests"]
+
+    Diagnostics LAN 1 Should Be Pass
+    Log To Console                           \n=> Checking your lan1 Connection successfull\n
+
+    Diagnostics LAN 2 Should Be Fail
+    Log To Console                           \n=> Checking your lan2 Connection successfull\n
+
+    Diagnostics Wireless Should Be Pass
+    Log To Console                           \n=> Checking your Wireless Connection successfull\n
+    SL.Close All Browsers
+
+   [Teardown]    Run Keyword And Ignore Error    GW020BRC_FUNC_50_TC_01_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_50_TC_01
+    # Log To Console                          Check Function Diagnostics LAN
+    # GW020BRC_FUNC_50_TC_01

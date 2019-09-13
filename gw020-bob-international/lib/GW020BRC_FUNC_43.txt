@@ -1,0 +1,93 @@
+*** Settings ***
+Library              SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Resource             selenium/Login/SeleniumLoginLib.txt
+Resource             selenium/DeviceInfo/Summary/SeleniumDeviceInfoSummaryLib.txt
+Resource             selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource             selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource             selenium/Management/InternetTime/SeleniumManagementInternetTimeLib.txt
+Resource             selenium/Management/Reboot/SeleniumManagementRebootLib.txt
+Resource             variables/AllVariables.txt
+
+*** Variables ***
+${LOGIN_BUTTON}                                    xpath=//button[@class="loginBtn"]
+
+*** Keywords ***
+GW020BRC_FUNC_43_Teardown
+    ####Teardown Testcase GW020BRC_FUNC_43
+    Open Internet Time Page
+    Disable Checkbox InternetTime
+    Save Configuration Time Zone
+    Open Network Settings Wan Page         url=${NETWORK_SETTINGS_WAN_URL}
+    Remove Wan Service                     vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    SL.Delete All Cookies
+    SL.Close All Browsers
+
+GW020BRC_FUNC_43
+    Log To Console                                Internet Time
+    SL.Set Selenium Speed                         0.7
+    Set Test Message                              *HTML* <b>GW020BRC_FUNC_43</b>
+    ###Step 1: Check InternetTime checkbox Should Be Disable
+    ##Login to Browser
+    Login To Browser                               remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                            url=${LOGIN_URL}
+    ...                                            username=${ONT_WEB_USER}
+    ...                                            password=${ONT_WEB_PASS}
+    ...                                            browser=${BROWSER}
+    Welcome Page Should Be Open
+
+    ####Check InternetTime checkbox Should Be Disable
+    Open Internet Time Page
+    Log To Console                                 \nStep 1: Check InternetTime checkbox Should Be Disable\n
+    SL.Page Should Contain Element                 xpath=//input[@name="ntpEnabled"]
+    SL.Checkbox Should Not Be Selected             xpath=//input[@name="ntpEnabled"]
+    Log To Console                                 Checkbox Internet Time is Disabled
+
+    Log To Console                                 \nAccess to Network Settings Wan Page and Remove existed WAN
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+    #Step 2.1: Create PPPoE WAN with correct PPP username/password
+    Log To Console                                 \nStep 2.1: Create PPPoE WAN with correct PPP username/password
+    Create New Wan PPPoE                           url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                            network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                                            priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                                            vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    ...                                            ppp_username=${CORRECT_PPP_USERNAME}
+    ...                                            ppp_password=${CORRECT_PPP_PASSWORD}
+    ...                                            routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                            wan_interface=${PPPOE_WAN_INTERFACE}
+
+    ##Step 2.2: Verify WAN should success on web
+    Log To Console                                 \nStep 2.2: Verify WAN should success on web
+    Wait Until Keyword Succeeds                    5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+    ###Step 3:Enable Checkbox InternetTime
+    Open Internet Time Page
+    Log To Console                                 \nStep 3:
+    Enable Checkbox InternetTime
+    Select Time Zone
+    Save Configuration Time Zone
+    Sleep                                         10s
+
+    ###Step 4: Verify time
+    Log To Console                                \nStep 4: Verify time\n
+    Wait Until Keyword Succeeds                   3x    1s    Verify Internet Time    time_zone=+07:00
+
+    ###Step 5: Reboot ONT and verify time
+    Log To Console                         \nStep 5: Reboot ONT and verify time\n
+    Run Keyword And Continue On Failure    Reboot Device Via Web GUI
+    SL.Go To                                       url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible               ${LOGIN_BUTTON}
+    ...                                            timeout=20s
+    ...                                            error=\nLogin Page Does Not Found!
+    Input Username                                 username=${ONT_WEB_USER}
+    Input User Password                            password=${ONT_WEB_PASS}
+    Submit Credentials
+    Welcome Page Should Be Open
+
+    Wait Until Keyword Succeeds                    3x    1s    Verify Internet Time    time_zone=+07:00
+
+    [Teardown]    Run Keyword And Ignore Error      GW020BRC_FUNC_43_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_43
+    # Log To Console                          Thuc hien Testcase GW020BRC_FUNC_43
+    # GW020BRC_FUNC_43

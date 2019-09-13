@@ -1,0 +1,163 @@
+*** Settings ***
+Library                                 SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Resource                                ../../Login/SeleniumLoginLib.txt
+Resource                                SeleniumNetworkSettingsWirelessBasicLib.txt
+Resource                                ../../../variables/AllVariables.txt
+
+*** Variables ***
+
+
+*** Keywords ***
+
+Open Wireless Security Page
+    [Arguments]                         ${wireless_security_url}=http://192.168.1.1/wlsec.html
+    SL.Go To                            ${wireless_security_url}
+    SL.Wait Until Page Contains         Wireless -- Security
+    ...                                 timeout=10s
+    ...                                 error=\nWireless Security Mode Does Not Show Up
+    SL.Page Should Contain              Wireless -- Security
+
+Select SSID
+    [Arguments]                         ${ssid}
+    SL.Wait Until Element Is Visible    xpath=//option[contains(text(), "${ssid}")]
+    ...                                 timeout=30s
+    ...                                 error=\nSelect SSID Dropdown Does Not Show Up
+    ${ssid_value}=      SL.Get Value    xpath=//option[contains(text(), "${ssid}")]
+    SL.Select From List By Value        xpath=//select[@name="wlSsidIdx"]      ${ssid_value}
+    Log To Console                      Select SSID ${ssid} to change network authentication
+
+Select Network Authentication
+    [Arguments]                         ${mode}
+    SL.Wait Until Element Is Visible    xpath=//option[contains(text(), "${mode}")]
+    ...                                 timeout=20s
+    ...                                 error=\nNetwork Authentication Dropdown Does Not Show Up
+    ${auth_value}=      SL.Get Value    xpath=//option[contains(text(), "${mode}")]
+    SL.Select From List By Value        xpath=//select[@name="wlAuthMode"]     ${auth_value}
+    Run Keyword If     'Open' == '${mode}'      SL.Click Button                xpath=//input[@value="Apply/Save"]
+    Run Keyword If     'Open' == '${mode}'      Log To Console                 Change Network Authentication To Open
+    SL.Wait Until Page Contains         Wireless -- Security
+    ...                                 timeout=30s
+    ...                                 error=\nWireless Security Mode Does Not Show Up
+
+Configure WPA2-PSK Mode
+    [Arguments]                         ${password}=1234567890                ${encryptionType}=AES      ${wpsMode}=Disabled
+    SL.Wait Until Element Is Visible    xpath=//input[@name="wlWpaPsk"]
+    ...                                 timeout=2s
+    ...                                 error=\nWPA/WAPI passphrase Does Not Show Up
+    SL.Input Password                   xpath=//input[@name="wlWpaPsk"]       ${password}
+    SL.Wait Until Element Is Visible    xpath=//select[@name="wlWpa"]
+    ...                                 timeout=2s
+    ...                                 error=\nWPA/WAPI Encryption Does Not Show Up
+    ${encryption_type_value}=           SL.Get Value                          xpath=//option[contains(text(), "${encryptionType}")]
+    SL.Select From List By Value        xpath=//select[@name="wlWpa"]         ${encryption_type_value}
+    Configure WPS                       ${wpsMode}
+    SL.Click Button                     xpath=//input[@value="Apply/Save"]
+    # SL.Wait Until Page Contains         Wireless -- Security
+    # ...                                 timeout=30s
+    # ...                                 error=\nWireless Security Mode Does Not Show Up
+    Sleep								3s
+    Log To Console                      Change network authentication to WPA2-PSK
+
+Configure Mixed WPA2/WPA-PSK Mode
+    [Arguments]                         ${password}=1234567890                ${encryptionType}=TKIP+AES      ${wpsMode}=Disabled
+    SL.Wait Until Element Is Visible    xpath=//input[@name="wlWpaPsk"]
+    ...                                 timeout=2s
+    ...                                 error=\nWPA/WAPI passphrase Does Not Show Up
+    SL.Input Password                   xpath=//input[@name="wlWpaPsk"]       ${password}
+    SL.Wait Until Element Is Visible    xpath=//select[@name="wlWpa"]
+    ...                                 timeout=2s
+    ...                                 error=\nWPA/WAPI Encryption Does Not Show Up
+    ${encryption_type_value}=           SL.Get Value                          xpath=//option[contains(text(), "${encryptionType}")]
+    SL.Select From List By Value        xpath=//select[@name="wlWpa"]         ${encryption_type_value}
+    Configure WPS                       ${wpsMode}
+    SL.Click Button                     xpath=//input[@value="Apply/Save"]
+    SL.Wait Until Page Contains         Wireless -- Security
+    ...                                 timeout=10s
+    ...                                 error=\nWireless Security Mode Does Not Show Up
+    Log To Console                      Change network authentication to Mixed WPA2/WPA-PSK
+
+Configure Shared Mode
+    [Arguments]                         ${encryptionStrength}=128-bit   ${currentNetworkKey}=1    ${networkKey}=1234567890123
+    SL.Wait Until Element Is Visible    xpath=//select[@name="wlKeyBit"]
+    ...                                 timeout=2s
+    ...                                 error=\nEncryption Strength Does Not Show Up
+    Run Keyword If                      '${encryptionStrength}' == '128-bit'  SL.Select From List By Value        xpath=//select[@name="wlKeyBit"]     0
+    ...    ELSE IF                      '${encryptionStrength}' == '64-bit'   SL.Select From List By Value        xpath=//select[@name="wlKeyBit"]     1
+    SL.Wait Until Element Is Visible    xpath=//select[@name="wlKeyIndex"]
+    ...                                 timeout=2s
+    ...                                 error=\nCurrent Network Key Dropdown Does Not Show Up
+    SL.Select From List By Value        xpath=//select[@name="wlKeyIndex"]    ${currentNetworkKey}
+    SL.Wait Until Element Is Visible    xpath=//input[@name="wlKeys"]
+    ...                                 timeout=2s
+    ...                                 error=\nNetwork Key Does Not Show Up
+    #SL.Input Text                       xpath=//input[@name="wlKeys"]         ${networkKey}
+    : FOR     ${i}       IN RANGE      ${currentNetworkKey}
+    \      ${index}=        Evaluate   3 + ${i}
+    \      SL.Input Text    xpath=//body/blockquote/form/div[@id="keyInfo"]/table/tbody/tr[${index}]/td[2]/input[@name="wlKeys"]     ${networkKey}
+    Configure WPS                       Disabled
+    SL.Click Button                     xpath=//input[@value="Apply/Save"]
+    SL.Wait Until Page Contains         Wireless -- Security
+    ...                                 timeout=10s
+    ...                                 error=\nWireless Security Mode Does Not Show Up
+    Log To Console                      Change network authentication to Shared
+
+
+Verify Change Security Should Success On Web
+    [Arguments]      ${mode}
+    Open Wireless Security Page         wireless_security_url=http://192.168.1.1/wlsec.html
+    SL.Wait Until Element Is Visible    xpath=//select[@name="wlAuthMode"]
+    ...                                 timeout=10s
+    ...                                 error=\nNetwork Authentication Dropdown Does Not Show Up
+    SL.List Selection Should Be         xpath=//select[@name="wlAuthMode"]     ${mode}
+    Sleep                               1
+
+Configure WPS
+    [Arguments]      ${mode}
+    SL.Wait Until Element Is Visible    xpath=//select[@name="wlWscMode"]
+    ...                                 timeout=10s
+    ...                                 error=\nEnable WPS Dropdown Does Not Show Up
+    Run Keyword If   '${mode}' == 'Enabled'    SL.Select From List By Value    xpath=//select[@name="wlWscMode"]      enabled
+    ...    ELSE IF   '${mode}' == 'Disabled'   SL.Select From List By Value    xpath=//select[@name="wlWscMode"]      disabled
+
+Get WPS PIN
+    [Documentation]                     Get WPS PIN after configure wps mode
+    ...                                 Return WPS PIN
+    ...                                 Author : BinhNT5
+    ...                                 3/2/2018
+    SL.Wait Until Page Contains Element  xpath=//input[@name="wlWscDevPin"]
+    ...                                  timeout=10
+    ...                                  error=\nWPS didnot enable\n
+    ${wps_pin}=                          Sl.Get Value    xpath=//input[@name="wlWscDevPin"]
+    [Return]                             ${wps_pin}
+
+
+Change Security Mode Teardown
+    [Arguments]                         ${defaultSSID}
+    Login To Browser                    remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                 url=${LOGIN_URL}
+    ...                                 username=${ONT_WEB_USER}
+    ...                                 password=${ONT_WEB_PASS}
+    ...                                 browser=${BROWSER}
+    Open Wireless Configure Page        http://192.168.1.1/wlcfg.html
+    Name SSID                           ${defaultSSID}
+    Open Wireless Security Page         http://192.168.1.1/wlsec.html
+    Select SSID                         ${defaultSSID}
+    Select Network Authentication       mode=Open
+    Close All Browsers
+
+Handle Failed Password
+    ${alertMessage}=                    SL.Handle Alert
+    Log To Console                      ${alertMessage}
+    SL.Go To                            ${wireless_security_url}=http://192.168.1.1/wlsec.html
+
+
+Select Security for SSID
+    [Arguments]                         ${ssid}      ${mode}
+    Log To Console                     \nOpen Wireless Security Page
+    Open Wireless Security Page         wireless_security_url=http://192.168.1.1/wlsec.html
+
+####Select Security
+    Log To Console                     \nSelect Security for SSID ${ssid}
+    Select SSID                        ${ssid}
+    Select Network Authentication      ${mode}
+

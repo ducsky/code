@@ -1,0 +1,26 @@
+*** Settings ***
+Library                                      SSHLibrary    WITH NAME    SSHL
+Resource                                     ssh/SshLib.txt
+Resource                                     variables/AllVariables.txt
+
+*** Variables ***
+
+*** Keywords ***
+GW020BRC_FUNC_67_Teardown
+    ###Teardown
+    SSHL.Close All Connections
+
+GW020BRC_FUNC_67
+    Log To Console                           CHECK WIFI DRIVER VERSION VIA TELNET TO ONT\n
+    Set Test Message                         *HTML* <b>GW020BRC_FUNC_67</b>
+    Telnet To ONT Device                     ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                      ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                      ssh_server_password=${REMOTE_SERVER_PASSWORD}    
+    # Check WIFI Driver Version
+    ${wifi_driver_ver}=                      Get Wifi Driver Version    delay=2s
+    Set Test Message                         \nWifi Driver Version: ${wifi_driver_ver}    append=True
+
+# *** Test cases ***
+# GW020BRC_FUNC_67
+    # Log To Console                            \nThuc hien Testcase GW020BRC_FUNC_67\n
+    # GW020BRC_FUNC_67

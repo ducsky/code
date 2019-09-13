@@ -1,0 +1,70 @@
+*** Settings ***
+Library                                      SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library                                      SSHLibrary    WITH NAME    SSHL
+Library                                      String    WITH NAME    STR
+Resource                                     selenium/Login/SeleniumLoginLib.txt
+Resource                                     selenium/DeviceInfo/Summary/SeleniumDeviceInfoSummaryLib.txt
+Resource                                     selenium/Management/SoftwareUpgrade/SeleniumManagementSoftwareUpgradeLib.txt
+Resource                                     process/ProcessUpgradeFirmwareLib.txt
+Resource                                     ssh/SshLib.txt
+Resource                                     variables/AllVariables.txt
+
+*** Variables ***
+
+*** Keywords ***
+GW020BRC_FUNC_57_Teardown
+    ###Teardown
+    SSHL.Close All Connections
+
+Upgrade Firmware via TFTP
+    [Arguments]                             ${firmwareUrl}    ${username}    ${password}
+    Log To Console                          \nStep 1.2: Download Firmware from Repo\n
+    Open Connection And Login To Remote Machine    ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+
+    SSHL.Execute Command                    curl --fail -u ${username}:${password} ${firmwareUrl} -o FIRMWARE_NAME
+
+
+    # Get wireless interface
+    ${wlan_interface}=                      SSHL.Execute Command    nmcli --fields Device,Type device status | grep 'wifi' | awk '{print $1}'
+
+    # Get ethernet interface which connect to ONT
+    ${lan_interface}=                       SSHL.Execute Command    ifconfig | grep -B1 "inet addr:192.168" | awk '$1!="inet" && $1!="--" {print $1}'
+    @{interface_list}=                      STR.Split String     ${lan_interface}    \n
+
+    ${interface_connect_to_ont}=            Set Variable    ${EMPTY}
+    :FOR   ${int}   IN    @{interface_list}
+    \        ${interface_connect_to_ont}=   Set Variable If     '${int}' != '${wlan_interface}' and '${int}' != ''     ${int}
+    
+    Should Not Be Empty                     ${interface_connect_to_ont}   
+
+    ###
+    ${ip_address_on_pc}=                    Get Network Interface Ip Address    network_interface=${interface_connect_to_ont}
+    Log To Console                          \nip address on pc ${ip_address_on_pc}\n
+    SSHL.Write                              telnet 192.168.1.1
+    Sleep                                   1s
+    SSHL.Write                              admin
+    ${check_output}=                        SSHL.Read    delay=0.5s
+    Log                                     ${check_output}    console=true
+    Should Contain                          ${check_output}    Password:
+    SSHL.Write                              ttcn@77CN
+    SSHL.Write                              tftp -g -t i -f FIRMWARE_NAME ${ip_address_on_pc}
+    ${check_output}=                        SSHL.Read    delay=60s
+    Log To Console                          ${check_output}
+
+GW020BRC_FUNC_57
+    [Arguments]                             ${firmwareUrl}    ${username}    ${password}
+    Set Test Message                        *HTML* <b>GW020BRC_FUNC_57</b>      
+    Log To Console                          UPDATE FIRMWARE VIA TFTP SERVER\n
+    Upgrade Firmware via TFTP               ${firmwareUrl}    ${username}    ${password}
+
+    Sleep                                   180s
+   
+    [Teardown]    Run Keyword And Ignore Error    GW020BRC_FUNC_57_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_57
+    # GW020BRC_FUNC_57    firmwareUrl=http://rdrepo.vnpt-technology.vn:8081/repository/ONT020/ONT020/G2.16A.06RTM_171205_1918
+    # ...                 username=anonymous-user    password=123
+

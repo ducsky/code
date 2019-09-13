@@ -1,0 +1,142 @@
+*** Variables ***
+
+#Selenium
+${REMOTE_SELENIUM_SERVER}              10.2.1.48
+${LOGIN_URL}                           http://192.168.1.1/main.html
+${BROWSER}                             chrome
+${ONT_WEB_USER}                        admin
+${ONT_WEB_PASS}                        admin
+${ONT_PASS_TELNET}					   gpon@Vnt00
+${ONT_WEB_PASS_FAIL_1}                 ttcn@55CN
+${ONT_WEB_PASS_FAIL_2}                 ttcn@66CN
+${ONT_WEB_PASS_FAIL_3}                 ttcn@88CN
+${NETWORK_SETTINGS_WAN_URL}            http://192.168.1.1/wancfg.cmd
+${IP_GATEWAY}                          192.168.1.1
+${TO_GOOGLE}                           8.8.8.8
+${TO_IPOE_GATEWAY}                     10.84.22.1
+
+#PPPoE
+${PPPOE_NETWORK_PROTOCOL}              IPv4
+${CORRECT_PPPOE_VLAN_PRIORITY}         0
+${CORRECT_PPPOE_VLAN_ID}               11
+${INCORRECT_PPPOE_VLAN_PRIORITY}       1
+${INCORRECT_PPPOE_VLAN_ID}             20
+${CORRECT_PPP_USERNAME}                ttcngpon
+${CORRECT_PPP_PASSWORD}                ttcngpon
+${INCORRECT_PPP_USERNAME}              abcdef
+${PPPOE_ROUTING_DEFAULT_GW}            Current Interface
+${PPPOE_WAN_INTERFACE}                 Current Interface
+${PPPOE_MTU_SIZE}                      1492
+${INVALID_PRIORITY}                    234
+${INVALID_VLAN}                        4095
+
+# IP address of test control PC
+${REMOTE_SERVER_IP}                    10.2.1.48
+
+# Username and password to login to test control PC
+${REMOTE_SERVER_USERNAME}              ubuntu
+${REMOTE_SERVER_PASSWORD}              123456
+${PING_PERIOD}                         60
+
+#IPoE
+${IPOE_NETWORK_PROTOCOL}               IPv4
+${CORRECT_IPOE_VLAN_PRIORITY}          0
+${CORRECT_IPOE_VLAN_ID_DYNAMIC}        203
+${CORRECT_IPOE_VLAN_ID_STATIC}         1129
+${CORRECT_WAN_IP_ADDRESS}              10.10.10.2
+${CORRECT_WAN_SUBNET_MASK}             255.255.255.252
+${CORRECT_WAN_GATEWAY}                 10.10.10.1
+${STATIC_IPOE_WAN_IP_ADDRESS}          10.182.146.175
+${IPOE_ROUTING_DEFAULT_GW}             Current Interface
+${IPOE_WAN_INTERFACE}                  Current Interface
+
+#Bridge
+${BRIDGE_SERVICE_DESCRIPTION}          br_veip0
+${CORRECT_BRIDGE_VLAN_PRIORITY}        0
+${CORRECT_BRIDGE_VLAN_ID}              12
+${BRIDGE_MTU_SIZE}                     1500
+
+
+#Interface Grouping
+${INTERFACE_GROUPING_CONFIG_URL}       http://192.168.1.1/portmap.cmd
+${PRIMARY_DNS}                         4.4.4.4
+${SECONDARY_DNS}                       4.4.3.3
+${INTERFACE_GROUP_NAME}                Bridge_mode
+${LAN_INTERFACE_ONT}                   2
+${BRIDGE_WAN_IP_ADDRESS}               0.0.0.0
+${IPOE_WAN_SUBNET}                     192.168.3.
+${PPP_GROUP_WAN_SUBNET}                192.168.2.
+${BRIDGE_WAN_SUBNET}                   10.182.
+${BRIDGE_WAN_PRIORITY}                 0
+${BRIDGE_WAN_VLAN_ID}                  12
+
+#Appium
+${APPIUM_REMOTE_SERVER}                10.2.1.48
+${APPIUM_REMOTE_PORT}                  7000
+${APPIUM_REMOTE_PORT_1}				   7001
+${PLATFORM_NAME}                       Android
+${PLATFORM_VERSION}                    6.0
+${DEVICE_NAME}                         025240911129365
+${SETTINGS_PACKAGE_NAME}               com.android.settings
+${WIFI_PICKER_ACTIVITY}                com.android.settings.wifi.WifiPickerActivity
+${SWITCH_WIDGET}                       android.widget.Switch
+${NEW_COMMAND_TIMEOUT}                 300
+
+#WiFi
+${WIFI_SSID_1}                        telecomhuyen_1
+${WIFI_SSID_2}                        Brother_2
+${WIFI_SSID_3}                        aaaaaaaa
+${WIFI_SSID_4}                        mama_myTV_4
+${WIFI_PASS_FAILED_1}                 ttcn
+${WIFI_PASS_FAILED_2}                 huyền
+${WIFI_PASS}                          1234567890
+${WIFI_PASS_WEP}                      1234567890123
+${WIRELESS_CONFIGURE_URL}             http://192.168.1.1/wlcfg.html
+${WIRELESS_SECURITY_URL}              http://192.168.1.1/wlsec.html
+
+#ONT Device
+${ONT_SUBNET}                         192.168.1.
+
+#link
+${YOUTUBE}                            https://www.youtube.com/
+${VLC_DURATION}                       180
+${VLC_CHANNEL}                        rtp://@232.84.1.2:7986
+${YOUTUBE_DURATION_PC}                120
+${YOUTUBE_DURATION_SMPHONE}           120
+${VIDEO_YOUTUBE_NAME}                 doraemon tap 1
+${VIDEO_DURATION_SMARTPHONE}          120
+
+# Laptop 1 and laptop 2 information
+${ONT2_SSID}                           huyen_1
+${ONT2_PASSWORD}                       1234567890
+
+######TC_08
+${SPECIAL_WAN_IP_ADDRESS}                      192.168.1.0
+${SPECIAL_WAN_SUBNET_MASK}                     255.255.255.255
+${SPECIAL_WAN_GATEWAY}                         0.0.0.0
+${SPECIAL_LAN_IP_ADDRESS}                      192.168.1.0
+${SPECIAL_LAN_SUBNET_MASK}                     255.255.255.255
+${SPECIAL_START_IP}                            192.168.1.0
+${SPECIAL_END_IP}                              192.168.1.0
+
+###TC50_03
+${IP_DIAGNOSTIC}                               8.8.8.8
+
+# Test case ONTBRC_FUNC_55
+${DDNS_HOST_NAME}                              testdemo203.ddns.net
+${DDNS_USERNAME}                               conga3chan@gmail.com
+${DDNS_PASSWORD}                               $1#2@3
+
+${CONFIG_FILE_NAME}                            backupsettings.conf
+${INVALID_CONFIG_FILE_NAME}                    ONT.conf
+${DOWNLOAD_DIR}                                /home/ubuntu/Downloads
+
+${FIRMWARE_NAME}                              G2.16A.06RTM_171205_1820
+${FIRMWARE_LOCATION_ON_REPO}                  http://rdrepo.vnpt-technology.vn/repository/ONT020/ONT020/G2.16A.06RTM_171205_1820
+${BUILD_TIMESTAMP}                            171205_1820
+${SOFTWARE_VERSION}                           G2.16A.06RTM
+
+###
+${TIME_TEST_PERFORMANCE}                        12
+### Yomo
+${WIFI_SECURITY}                              WPA/WPA2 PSK

@@ -1,0 +1,199 @@
+*** Settings ***
+Library              SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library              String     WITH NAME    STR
+Library              DateTime           WITH NAME    DT
+Library              SSHLibrary    WITH NAME    SSHL
+Library              Collections    WITH NAME    CL
+Resource             selenium/Login/SeleniumLoginLib.txt
+Resource             selenium/DeviceInfo/Summary/SeleniumDeviceInfoSummaryLib.txt
+Resource             selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource             selenium/Management/InternetTime/SeleniumManagementInternetTimeLib.txt
+Resource             selenium/Management/CronTable/SeleniumCronTableLib.txt
+Resource             selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource             selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource             ssh/SshLib.txt
+Resource             variables/AllVariables.txt
+
+*** Variables ***
+${LOGIN_BUTTON}                              xpath=//button[@class="loginBtn"]
+###%H:%M:%S: 00:03:00 => Wating 3 minutes => Reboot
+${TIME_CRONTAB}                              00:03:00
+
+*** Keywords ***
+GW020BRC_FUNC_65_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers    
+
+# Waiting Time To Cron Tab Execute Reboot
+    # [Arguments]                                     ${date_time_array_crontab}
+    # ${date_time_array_ont}=                         Get Date Time Array From ONT
+    # ${date_time_array_crontab}=                     Change Crontab Date Time    date_time_array_crontab=${date_time_array_crontab}
+    # ...                                                                         date_time_array_ont=${date_time_array_ont}
+    # ${check_date_time}=                             Check Date Time    ${date_time_array_ont}    ${date_time_array_crontab}
+    # Log To Console                                  ${check_date_time}
+    # [Return]                                        ${check_date_time}
+
+# Get Date Time Array From ONT
+    # ${date_time_ont}=                                Get ONT Device Date Time    ssh_server_ip=${REMOTE_SERVER_IP}
+    # ...                                                                          ssh_server_username=${REMOTE_SERVER_USERNAME}
+    # ...                                                                          ssh_server_password=${REMOTE_SERVER_PASSWORD}
+    # SSHL.Close Connection
+    # ${date_time_array_ont}=                          Convert ONT Date Time To Array    date_time=${date_time_ont}
+    # [Return]                                         ${date_time_array_ont}
+
+# Convert ONT Date Time To Array
+
+    # [Arguments]                                     ${date_time}
+    # @{date_time_array}=                             STR.Get Regexp Matches    ${date_time}    [0-9]+
+    # @{crontab_date_time_array}                      Set Variable    @{date_time_array}[0]
+    # ...                                                             @{date_time_array}[1]
+    # ...                                                             @{date_time_array}[2]
+    # ...                                                             @{date_time_array}[3]
+    # ...                                                             @{date_time_array}[5]
+    # [Return]                                        @{crontab_date_time_array}
+
+# Change Crontab Date Time
+    # [Arguments]                                     ${date_time_array_crontab}
+    # ...                                             ${date_time_array_ont}
+    # :FOR                                            ${i}    IN RANGE    5
+     # \    Run Keyword If                            "@{date_time_array_crontab}[${i}]" == "*"
+     # ...                                            CL.Set List Value    ${date_time_array_crontab}    ${i}     @{date_time_array_ont}[${i}]
+     # [Return]                                       ${date_time_array_crontab}
+
+# Check Date Time
+
+    # [Arguments]                                     ${date_time_array_ont}
+    # ...                                             ${date_time_array_crontab}
+    # ${number_matched_value}=                        Set Variable    ${0}
+    # ${minute_in_ont}=                               Convert To Integer   @{date_time_array_ont}[${0}]
+    # ${minute_in_ont}=                               Evaluate    ${minute_in_ont} + 1
+    # ${minute_in_crontab}=                           Convert To Integer    @{date_time_array_crontab}[${0}]
+    # ${number_matched_value}=                        Run Keyword If   ${minute_in_ont} == ${minute_in_crontab}
+    # ...                                             Evaluate    ${number_matched_value} + 1
+    # ...                                             ELSE        Evaluate    ${number_matched_value} + 0
+    # :FOR                                            ${i}     IN RANGE    1    5
+    # \    ${number_matched_value}=                   Run Keyword If   "@{date_time_array_crontab}[${i}]" == "@{date_time_array_ont}[${i}]"
+    # ...                                             Evaluate    ${number_matched_value} + 1
+    # ...                                             ELSE        Evaluate    ${number_matched_value} + 0
+    # ${checked_result}                               Run Keyword If    ${number_matched_value} == ${5}    Set Variable    True
+    # ...                                             ELSE              Set Variable    False
+    # [Return]                                        ${checked_result}
+
+Check ONT Device was reboot By Crontab
+    [Arguments]                                     ${uptime_array}
+    ${day}=                                         Convert To Integer    @{uptime_array}[${2}]
+    ${hour}=                                        Convert To Integer    @{uptime_array}[${1}]
+    ${minute}=                                      Convert To Integer    @{uptime_array}[${0}]
+    Run Keyword If                                  ${day} == ${0} and ${hour} == ${0} and ${minute} <= ${3}
+    ...                                             Log To Console    \nONT Device was reboot by crontable\n
+    ...                                             ELSE    Fail    \nONT was not reboot\n
+
+Retry Login After Reboot
+    SL.Close All Browsers
+    Login To Browser                                remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                             url=${LOGIN_URL}
+    ...                                             username=${ONT_WEB_USER}
+    ...                                             password=${ONT_WEB_PASS}
+    ...                                             browser=${BROWSER}
+    Welcome Page Should Be Open
+
+GW020BRC_FUNC_65
+    ###Step 1.1: Add WAN PPPoE
+    Log To Console                                  REBOOT ONT USING CRON TABLE FUNCTION
+    SL.Set Selenium Speed                           0.7
+    Set Test Message                                *HTML* <b>GW020BRC_FUNC_65</b>
+    Log To Console                                  \nStep 1.1: Add WAN PPPoE
+    Login To Browser                                remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                             url=${LOGIN_URL}
+    ...                                             username=${ONT_WEB_USER}
+    ...                                             password=${ONT_WEB_PASS}
+    ...                                             browser=${BROWSER}
+    Welcome Page Should Be Open
+
+    # Add new PPPoE wan 
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+    Create New Wan PPPoE                           url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                            network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                                            priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                                            vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    ...                                            ppp_username=${CORRECT_PPP_USERNAME}
+    ...                                            ppp_password=${CORRECT_PPP_PASSWORD}
+    ...                                            routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                            wan_interface=${PPPOE_WAN_INTERFACE}
+
+    ##Step 1.2: Verify WAN should success on web
+    Log To Console                                 \nStep 1.2: Verify WAN should success on web
+    Wait Until Keyword Succeeds                    5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+    ###Step 2.1: Go Internet time page set timezone
+    Log To Console                                 \nStep 2.1: Enable Checkbox InternetTime
+    Open Internet Time Page
+    Enable Checkbox InternetTime
+    Select Time Zone                               time_zone=+07:00
+    Save Configuration Time Zone     
+
+    ###Step 2.2: Verify time
+    Log To Console                                 \nStep 2.2: Verify time\n
+    Wait Until Keyword Succeeds                    3x    1s    Verify Internet Time    time_zone=+07:00
+
+    ## Check time for setting crontab with All: Day Of Week, Month and Day Of Month 
+    ${minutes_hours}=                              Get Current Date  result_format=%M:%H    increment=${TIME_CRONTAB}
+    
+    # Log To Console    ${minutes}    
+    ${DATE_TIME_CRONTAB}=                          Set Variable    ${minutes_hours}:*:*:*
+      
+    ###Configure crontab rule and check crontab rule work
+    Log To Console                                  \nStep 3: Configure crontab rule and check crontab rule work
+    ${date_time_array_crontab}=                     Filter Time    date_time_crontab_tmp=${DATE_TIME_CRONTAB}
+    Log To Console                                  ${date_time_array_crontab}
+    Go To Add Cron Table Page
+    Add Reboot Rule In Cron Table                   date_time_array=${date_time_array_crontab}
+    SL.Close Browser
+
+    # Waiting to Reboot
+    ${time_string}=                                 STR.Split String     string=${TIME_CRONTAB}    separator=:
+    ${hours}=                                       Set Variable     @{time_string}[0]
+    ${minutes}=                                     Set Variable     @{time_string}[1]
+    Sleep                                           ${hours}h ${minutes}m
+    # :FOR                                            ${i}     IN RANGE    1000000
+    # \    ${checked_time_result}=                    Waiting Time To Cron Tab Execute Reboot   date_time_array_crontab=${date_time_array_crontab}
+    # \    Exit For Loop If                           "${checked_time_result}" == "True"
+    # \    Sleep                                      30
+
+    # Retry Login After Reboot
+    Wait Until Keyword Succeeds                     210s    5s    Retry Login After Reboot
+    # Recheck
+    Open Device Info Summary Page
+    ${uptime_array}=                                Get Uptime From Device Info Page
+    Check ONT Device was reboot By Crontab          uptime_array=${uptime_array}
+
+    ###Check Wan PPPoE exist after reboot
+    Log To Console                                  \nStep 4: Check Wan PPPoE exist after reboot
+    Open Device Info Wan Page
+    Wait Until Keyword Succeeds                     5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+    [Teardown]    Run Keyword And Ignore Error       GW020BRC_FUNC_65_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_65
+    # GW020BRC_FUNC_65
+
+

@@ -1,0 +1,262 @@
+*** Settings ***
+Library                                            SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library                                            SSHLibrary         WITH NAME    SSHL
+Resource                                           ./selenium/Login/SeleniumLoginLib.txt
+Resource                                           ./selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource                                           ./selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource                                           ./selenium/Management/Reboot/SeleniumManagementRebootLib.txt
+Resource                                           ./selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessBasicLib.txt
+Resource                                           ./selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource                                           ./ssh/SshLib.txt
+Resource                                           ./Watching_Youtube_onPC.txt
+Resource                                           ./variables/AllVariables.txt
+
+*** Variables ***
+${LOGIN_BUTTON}                                xpath=//button[@class="loginBtn"]
+${vlan_id}                                     12
+
+*** Keywords ***
+GW020BRC_FUNC_15_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+    ######Disable wifi
+    Open Connection And Login To Remote Machine    ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+    Delete All Wireless
+    SSHL.Close All Connections
+
+GW020BRC_FUNC_15_Wifi_Rescan
+    [Arguments]                                    ${wifi_ssid}
+    SSHL.Execute Command                           nmcli device wifi rescan
+    ${wirelessList}=                               SSHL.Execute Command    nmcli device wifi list
+    Should Contain                                 ${wirelessList}    ${wifi_ssid}
+
+GW020BRC_FUNC_15
+    ##Step 1: Login then access to Network Settings Wan Page
+    SL.Set Selenium Speed                          0.7
+    Set Test Message                               *HTML* <b>GW020BRC_FUNC_15</b>
+    Log To Console                                 \n\nStep 1: Login to WEBGUI\n
+    Login To Browser                               remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                            url=${LOGIN_URL}
+    ...                                            username=${ONT_WEB_USER}
+    ...                                            password=${ONT_WEB_PASS}
+    ...                                            browser=${BROWSER}
+    Welcome Page Should Be Open
+    Log To Console                                 \n\nStep 1.2: Access to Network Settings Wan Page and Remove existed WAN\n
+
+    ######Remove existed Wan Service
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+    Create New Wan PPPoE                           url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                            network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                                            priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                                            vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    ...                                            ppp_username=${CORRECT_PPP_USERNAME}
+    ...                                            ppp_password=${CORRECT_PPP_PASSWORD}
+    ...                                            routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                            wan_interface=${PPPOE_WAN_INTERFACE}
+
+    ##Step 2.1: Verify WAN should success on web
+    Log To Console                                 Step 2.1: Verify WAN with correct PPP username/password connected on web
+    Wait Until Keyword Succeeds                    5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+    ##Name SSID
+    Open Wireless Configure Page                    wireless_configure_url=${WIRELESS_CONFIGURE_URL}
+    Wait Until Keyword Succeeds                    20s    5s          Name SSID                ssid=${WIFI_SSID_1}
+    Wait Until Keyword Succeeds                    20s    5s         SL.Close Browser
+    
+
+    ##Step 2.2: Verify Ping to 8.8.8.8 should success
+    Log To Console                                 Step 2.2: Verify Ping to 8.8.8.8 should success\n
+    Open Connection And Login To Remote Machine    ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+    # Disconnect Wifi
+    Delete All Wireless
+    Wait Until Keyword Succeeds                    120s    5s    GW020BRC_FUNC_15_Wifi_Rescan    wifi_ssid=${WIFI_SSID_1}
+    ${wlan_interface}=                             SSHL.Execute Command    nmcli --fields Device,Type device status | grep 'wifi' | awk '{print $1}'
+    ${lan_interface}=                              SSHL.Execute Command    ifconfig | grep -B1 "inet addr:192.168" | awk '$1!="inet" && $1!="--" {print $1}'
+    
+    Connect To Wifi                                ${wlan_interface}    ${WIFI_SSID_1}
+    
+
+    Wait Until Keyword Succeeds                    5x    1s    Ping Should Succeed    ping_address=${TO_GOOGLE}    network_interface=${wlan_interface}
+    # Disconnect Wifi
+    Delete All Wireless
+
+    #######Step 3: Click button "Disconnected"
+    #####Login To WEBGUI
+    Log To Console                                 \n\nStep 3.1: Login to WEBGUI...\n
+    Login To Browser                               remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                            url=${LOGIN_URL}
+    ...                                            username=${ONT_WEB_USER}
+    ...                                            password=${ONT_WEB_PASS}
+    ...                                            browser=${BROWSER}
+    Welcome Page Should Be Open
+    ####Go To WAN InFo Page
+    SL.Go To                                       url=http://192.168.1.1/wancfg.cmd?action=view
+    SL.Wait Until Page Contains                    WAN Info
+    ...                                            timeout=20s
+    ...                                            error=\nWAN Info Page Not Found
+    SL.Page Should Contain                         WAN Info
+
+    ######Click Disconnect Button
+    Log To Console                                 \n\nStep3.2: Click Disconnect Button\n
+    Disconnect WAN                                 vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    Wait Until Keyword Succeeds                    5x    1s    Wan Connection Should Be Failed    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    SL.Close Browser
+
+    ####Verify Ping to 8.8.8.8 should failed
+    Log To Console                                 \nStep 3.3: Verify Ping to 8.8.8.8 should failed\n
+    Wait Until Keyword Succeeds                    5x    1s    Ping Should Failed    ping_address=${TO_GOOGLE}    network_interface=${lan_interface}
+
+    Connect To Wifi                                ${wlan_interface}    ${WIFI_SSID_1}
+
+    Wait Until Keyword Succeeds                    5x    1s    Ping Should Failed    ping_address=${TO_GOOGLE}    network_interface=${wlan_interface}
+    # Disconnect Wifi
+    Delete All Wireless
+
+
+    #######Step 4: Reconnect PPPoE
+    Log To Console                                 \n\nStep 4.1: Login to WEBGUI...\n
+    Login To Browser                               remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                            url=${LOGIN_URL}
+    ...                                            username=${ONT_WEB_USER}
+    ...                                            password=${ONT_WEB_PASS}
+    ...                                            browser=${BROWSER}
+    Welcome Page Should Be Open
+    ####Go To WAN InFo Page
+    SL.Go To                                       url=http://192.168.1.1/wancfg.cmd?action=view
+    SL.Wait Until Page Contains                    WAN Info
+    ...                                            timeout=20s
+    ...                                            error=\nWAN Info Page Not Found
+    SL.Page Should Contain                         WAN Info
+    ######Click Reconnect Button
+    Log To Console                                 \n\nStep4.2: Click Connect Button\n
+    Connect WAN                                    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    Wait Until Keyword Succeeds                    5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    SL.Close Browser
+
+    ####Verify Ping to 8.8.8.8 should success
+    Log To Console                                 \n\nStep 4.3: Verify Ping to 8.8.8.8 should success\n
+    Wait Until Keyword Succeeds                    5x    1s    Ping Should Succeed    ping_address=${TO_GOOGLE}    network_interface=${lan_interface}
+
+    Connect To Wifi                                ${wlan_interface}    ${WIFI_SSID_1}
+
+    Wait Until Keyword Succeeds                    5x    1s    Ping Should Succeed    ping_address=${TO_GOOGLE}    network_interface=${wlan_interface}
+    # Disconnect Wifi
+    Delete All Wireless
+
+    #####
+    Log To Console                                 \n\nStep 4.4: Login to WEBGUI and remove WAN Service...\n
+    Login To Browser                               remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                            url=${LOGIN_URL}
+    ...                                            username=${ONT_WEB_USER}
+    ...                                            password=${ONT_WEB_PASS}
+    ...                                            browser=${BROWSER}
+    Welcome Page Should Be Open
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+    ################### Do those  step again with IPoE Mode ##############
+    ######################################################################
+    Log To Console                          \n\nStep 5: Configure IPoE and check add IPoE Successfully\n
+    Create New Wan IPoE                      url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                      network_protocol=${IPOE_NETWORK_PROTOCOL}
+    ...                                      priority=${CORRECT_IPOE_VLAN_PRIORITY}
+    ...                                      vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+    ############Step 5.1: Verify IPoE WAN with Dynamic IP should success on web
+    Log To Console                           \n\nStep 5.1: Verify IPoE WAN with Dynamic IP should success on web\n
+    Wait Until Keyword Succeeds              5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+    SL.Close Browser
+
+    ############Step 5.2: Verify Ping to ${TO_IPOE_GATEWAY} should success
+    Log To Console                           \n\nStep 5.2: Verify Ping should success\n
+    Wait Until Keyword Succeeds                    120s    5s    GW020BRC_FUNC_15_Wifi_Rescan    wifi_ssid=${WIFI_SSID_1}
+    Wait Until Keyword Succeeds                    12x    5s    Ping Should Succeed    ping_address=${TO_IPOE_GATEWAY}    network_interface=${lan_interface}
+    Connect To Wifi                                ${wlan_interface}    ${WIFI_SSID_1}
+    Wait Until Keyword Succeeds                    12x    5s    Ping Should Succeed    ping_address=${TO_IPOE_GATEWAY}    network_interface=${wlan_interface}
+    # Disconnect Wifi
+    Delete All Wireless
+
+    #######Step 6: Click button "Disconnected"
+    #####Login To WEBGUI
+    Log To Console                                 \n\nStep 6.1: Login to WEBGUI...\n
+    Login To Browser                               remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                            url=${LOGIN_URL}
+    ...                                            username=${ONT_WEB_USER}
+    ...                                            password=${ONT_WEB_PASS}
+    ...                                            browser=${BROWSER}
+    Welcome Page Should Be Open
+    ####Go To WAN InFo Page
+    SL.Go To                                       url=http://192.168.1.1/wancfg.cmd?action=view
+    SL.Wait Until Page Contains                    WAN Info
+    ...                                            timeout=20s
+    ...                                            error=\nWAN Info Page Not Found
+    SL.Page Should Contain                         WAN Info
+
+    ######Click Disconnect Button
+    Log To Console                                 \n\nStep6.2: Click Disconnect Button\n
+    Disconnect WAN                                 vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+    Wait Until Keyword Succeeds                    5x    1s    Wan Connection Should Be Failed    vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+    SL.Close Browser
+
+    ####Verify Ping to ${TO_IPOE_GATEWAY} should failed
+    Log To Console                                 \n\nStep 6.3:Verify Ping to ${TO_IPOE_GATEWAY} should failed\n
+    Wait Until Keyword Succeeds                    12x    5s    Ping Should Failed    ping_address=${TO_IPOE_GATEWAY}   network_interface=${lan_interface}
+
+    Connect To Wifi                                ${wlan_interface}    ${WIFI_SSID_1}
+    Wait Until Keyword Succeeds                    12x    5s    Ping Should Failed    ping_address=${TO_IPOE_GATEWAY}   network_interface=${wlan_interface}
+    # Disconnect Wifi
+    Delete All Wireless
+
+    #######Step 7: Reconnect IPoE
+    Log To Console                                 \n\nStep 7.1: Login to WEBGUI...\n
+    Login To Browser                               remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                            url=${LOGIN_URL}
+    ...                                            username=${ONT_WEB_USER}
+    ...                                            password=${ONT_WEB_PASS}
+    ...                                            browser=${BROWSER}
+    Welcome Page Should Be Open
+    ####Go To WAN InFo Page
+    SL.Go To                                       url=http://192.168.1.1/wancfg.cmd?action=view
+    SL.Wait Until Page Contains                    WAN Info
+    ...                                            timeout=20s
+    ...                                            error=\nWAN Info Page Not Found
+    SL.Page Should Contain                         WAN Info
+    ######Click Reconnect Button
+    Log To Console                                 \n\nStep 7.2: Click Connect Button\n
+    Connect WAN                                    vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+    Wait Until Keyword Succeeds                    5x    1s    Wan Connection Should Be Success          vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+    SL.Close Browser
+
+    ####Verify Ping to ${TO_IPOE_GATEWAY} should success
+    Log To Console                                 \n\nStep 7.3: Verify Ping to ${TO_IPOE_GATEWAY} should success\n
+    Wait Until Keyword Succeeds                    12x    5s    Ping Should Succeed    ping_address=${TO_IPOE_GATEWAY}    network_interface=${lan_interface}
+    Wait Until Keyword Succeeds                    120s    5s    GW020BRC_FUNC_15_Wifi_Rescan    wifi_ssid=${WIFI_SSID_1}
+    Connect To Wifi                                ${wlan_interface}    ${WIFI_SSID_1}
+    Wait Until Keyword Succeeds                    12x    5s    Ping Should Succeed    ping_address=${TO_IPOE_GATEWAY}    network_interface=${wlan_interface}
+    Delete All Wireless
+    SSHL.Close Connection
+
+    [Teardown]    Run Keyword And Ignore Error     GW020BRC_FUNC_15_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_15
+    # GW020BRC_FUNC_15

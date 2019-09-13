@@ -1,0 +1,84 @@
+*** Settings ***
+Library                                      SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Resource                                     selenium/Login/SeleniumLoginLib.txt
+Resource                                     selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource                                     selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource                                     selenium/Login/SeleniumLoginWithOperatorUserLib.txt
+Resource                                     selenium/AdvancedFeatures/Routing/SeleniumAdvancedFeaturesRoutingStaticRoute.txt
+Resource                                     ssh/SshLib.txt
+Resource                                     selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource                                     variables/AllVariables.txt
+
+*** Variables ***
+${LOGIN_BUTTON}                                xpath=//button[@class="loginBtn"]
+*** Keywords ***
+GW020BRC_FUNC_79_TC_01_Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+
+Change Password_TC_79
+    [Arguments]                               ${inUserName}   ${old_pass}   ${new_pass}   ${cfm_new_pass}
+    SL.Input Text                             xpath=//input[@name='inUserName']         ${inUserName}
+    SL.Input Text                             xpath=//input[@name='inOrgPassword']      ${old_pass}
+    SL.Input Text                             xpath=//input[@name='inPassword']         ${new_pass}
+    SL.Input Text                             xpath=//input[@name='pwdCfm']             ${cfm_new_pass}
+    SL.Click Button                           xpath=//input[@value='Apply/Save']
+    SL.Wait Until Page Contains               Message
+    ...                                       timeout=20s
+    ...                                       error=\nMessage:Password change successful Does Not Found
+    SL.Click Button                           xpath=//input[@type='button']
+GW020BRC_FUNC_79_TC_01
+    Log To Console                           Check Default Status NAT and Firewall WAN with account Admin
+    Set Test Message                        *HTML* <b>GW020BRC_FUNC_79_TC_01</b>
+    ####Create a new wan pppoe
+    Log To Console                          \nStep 1: Login to Wan Configure Page with account Admin\n
+    Login To Browser                        remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                     url=${LOGIN_URL}
+    ...                                     username=${ONT_WEB_USER}
+    ...                                     password=${ONT_WEB_PASS}
+    ...                                     browser=${BROWSER}
+    Welcome Page Should Be Open
+    Open Network Settings Wan Page          url=${NETWORK_SETTINGS_WAN_URL}
+    ###Create WAN PPPoE
+    Create New Wan PPPoE                    url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                     network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                                     priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                                     vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    ...                                     ppp_username=${CORRECT_PPP_USERNAME}
+    ...                                     ppp_password=${CORRECT_PPP_PASSWORD}
+    ...                                     routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                     wan_interface=${PPPOE_WAN_INTERFACE}
+
+    ##Verify WAN should success on web
+    Sleep                                   5s
+    Log To Console                          \nVerify WAN should success on web
+    Wait Until Keyword Succeeds             5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+    ###Check Firewall and NAT Status
+    Log To Console                          \nCheck Status Nat and Firewall\n
+    Firewall Status Should Be Enabled       vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    NAT Status Should Be Enabled            vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+    [Teardown]     Run Keyword And Ignore Error  GW020BRC_FUNC_79_TC_01_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_79_TC_01
+    # Log To Console                            Thuc hien Testcase GW020BRC_FUNC_79_TC_01
+    # GW020BRC_FUNC_79_TC_01

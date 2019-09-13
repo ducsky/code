@@ -1,0 +1,244 @@
+*** Settings ***
+Library                                            SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Resource                                           selenium/Login/SeleniumLoginLib.txt
+Resource                                           selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource                                           selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource                                           selenium/Management/Reboot/SeleniumManagementRebootLib.txt
+Resource                                           selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessBasicLib.txt
+Resource                                           ssh/SshLib.txt
+Resource                                           selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource                                           variables/AllVariables.txt
+
+*** Variables ***
+${LOGIN_BUTTON}                                    xpath=//button[@class="loginBtn"]
+${ADD_WAN_BUTTON}                                  xpath=//input[@value="Add"]
+
+*** Keywords ***
+GW020BRC_FUNC_22_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+
+GW020BRC_FUNC_22
+    SL.Set Selenium Speed                          0.7
+    Set Test Message                               *HTML* <b>GW020BRC_FUNC_22</b>
+    Log To Console                                 Create and Remove many WAN Services
+    ##Step 1: Login then access to Network Settings Wan Page
+    Log To Console                                 \nStep 1.1: Login to WEBGUI\n
+    Login To Browser                               remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                            url=${LOGIN_URL}
+    ...                                            username=${ONT_WEB_USER}
+    ...                                            password=${ONT_WEB_PASS}
+    ...                                            browser=${BROWSER}
+    Welcome Page Should Be Open
+
+    #Create PPPoE WAN with correct PPP username/password
+    Log To Console                                 \nStep 1.2: Create 1st PPPoE WAN with correct PPP username/password\n
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+    Create New Wan PPPoE                           url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                            network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                                            priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                                            vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    ...                                            ppp_username=${CORRECT_PPP_USERNAME}
+    ...                                            ppp_password=${CORRECT_PPP_PASSWORD}
+    ...                                            routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                            wan_interface=${PPPOE_WAN_INTERFACE}
+
+    ###Verify Add button should be visible
+    SL.Wait Until Element Is Visible               ${ADD_WAN_BUTTON}
+    ...                                            timeout=20s
+    ...                                            error=\nAdd Button Not Found
+
+    ####Create IPoE WAN
+    Log To Console                                 \nStep 1.3: Create 2nd IPoE WAN with Dynamic IP that correct VLAN Priority and VLAN ID\n
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+    Create New Wan IPoE                            url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                            network_protocol=${IPOE_NETWORK_PROTOCOL}
+    ...                                            priority=${CORRECT_IPOE_VLAN_PRIORITY}
+    ...                                            vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+
+    ###Verify Add button should be visible
+    SL.Wait Until Element Is Visible               ${ADD_WAN_BUTTON}
+    ...                                            timeout=20s
+    ...                                            error=\nAdd Button Not Found
+
+    ###Create another WANs PPPoE
+    Log To Console                                 \nStep 1.4: Create 3rd PPPoE WAN with incorrect PPP username/password\n
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+    Create New Wan PPPoE                           url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                            network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                                            priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                                            vlan_id=15
+    ...                                            ppp_username=${CORRECT_PPP_USERNAME}
+    ...                                            ppp_password=${CORRECT_PPP_PASSWORD}
+    ...                                            routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                            wan_interface=${PPPOE_WAN_INTERFACE}
+
+    ###Verify Add button should be visible
+    SL.Wait Until Element Is Visible               ${ADD_WAN_BUTTON}
+    ...                                            timeout=20s
+    ...                                            error=\nAdd Button Not Found
+
+    Log To Console                                 \nStep 1.5: Create 4th PPPoE WAN with incorrect PPP username/password\n
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+    Create New Wan PPPoE                           url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                            network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                                            priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                                            vlan_id=16
+    ...                                            ppp_username=${CORRECT_PPP_USERNAME}
+    ...                                            ppp_password=${CORRECT_PPP_PASSWORD}
+    ...                                            routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                            wan_interface=${PPPOE_WAN_INTERFACE}
+
+
+    ###Verify Add button should be visible
+    SL.Wait Until Element Is Visible               ${ADD_WAN_BUTTON}
+    ...                                            timeout=20s
+    ...                                            error=\nAdd Button Not Found
+
+    Log To Console                                 \nStep 1.6: Create 5th PPPoE WAN with incorrect PPP username/password\n
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+    Create New Wan PPPoE                           url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                            network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                                            priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                                            vlan_id=17
+    ...                                            ppp_username=${CORRECT_PPP_USERNAME}
+    ...                                            ppp_password=${CORRECT_PPP_PASSWORD}
+    ...                                            routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                            wan_interface=${PPPOE_WAN_INTERFACE}
+
+    ###Verify Add button should be disable
+    SL.Element Should Be Disabled                  ${ADD_WAN_BUTTON}
+    Log To Console                                 \nAdd button has been disable!
+
+    ###Verify page should contains maximum 8 WAN Services
+    Open Device Info Wan Page
+
+    ${max_wan_number}=                             Counting Number Exist WAN
+    Run Keyword If                                 ${max_wan_number} != ${8}    Fail    \nMax WAN number can Create should equal 8\n
+    Log To Console                                 \nCheck WAN Status of 8 Exist WAN\n
+    Check Wan Status                               4000    Connected
+    Log To Console                                 \nStatus WAN 4000 is Connected\n
+    Check Wan Status                               441     Connecting
+    Log To Console                                 Status WAN 441 is Connecting\n
+    Check Wan Status                               400     Connecting
+    Log To Console                                 \nStatus WAN 400 is Connecting\n
+    Check Wan Status                               1014     Connected
+    Log To Console                                 \nStatus WAN 1014 is Connected\n
+    Check Wan Status                               11     Connected
+    Log To Console                                 \nStatus WAN 11 is Connected\n
+    Check Wan Status                               15     Disconnected
+    Log To Console                                 \nStatus WAN 15 is Disconnected\n
+    Check Wan Status                               16     Disconnected
+    Log To Console                                 \nStatus WAN 16 is Disconnected\n
+    Check Wan Status                               17     Disconnected
+    Log To Console                                 \nStatus WAN 17 is Disconnected\n
+
+    ####Remove 2 existed Wan Service
+    Log To Console                                 \nAccess to Network Settings Wan Page and Remove WAN PPPoE with VLAN ID = 17 and VLAN ID = 16\n
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+    Remove Wan Service                             vlan_id=17
+    Log To Console                                 \nWAN PPPoE with VLAN ID = 17 has been removed!\n
+    Remove Wan Service                             vlan_id=16
+    Log To Console                                 \nWAN PPPoE with VLAN ID = 16 has been removed!\n
+
+    ###Verify Add button should be visible
+    SL.Wait Until Element Is Visible               ${ADD_WAN_BUTTON}
+    ...                                            timeout=20s
+    ...                                            error=\nAdd Button Not Found
+
+    ###Verify page should contains 6 WAN Services
+    Open Device Info Wan Page
+
+    ${wan_number}=                                 Counting Number Exist WAN
+    Run Keyword If                                 ${wan_number} != ${6}    Fail    \nWAN number should equal 6 now\n
+    Log To Console                                 \nCheck WAN Status of 6 Exist WAN\n
+    Check Wan Status                               4000    Connected
+    Log To Console                                 \nStatus WAN 4000 is Connected\n
+    Check Wan Status                               441     Connecting
+    Log To Console                                 Status WAN 441 is Disconnected\n
+    Check Wan Status                               400     Connecting
+    Log To Console                                 \nStatus WAN 400 is Disconnected\n
+    Check Wan Status                               1014     Connected
+    Log To Console                                 \nStatus WAN 1014 is Connected\n
+    Check Wan Status                               11     Connected
+    Log To Console                                 \nStatus WAN 11 is Connected\n
+    Check Wan Status                               15     Disconnected
+    Log To Console                                 \nStatus WAN 15 is Disconnected\n
+
+    ####Remove 2 existed Wan Service
+    Log To Console                                 \nAccess to Network Settings Wan Page and Remove WAN PPPoE with VLAN ID = 15 and VLAN ID = 11\n
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+    Remove Wan Service                             vlan_id=15
+    Log To Console                                 \nWAN PPPoE with VLAN ID = 15 has been removed!\n
+    Remove Wan Service                             vlan_id=11
+    Log To Console                                 \nWAN PPPoE with VLAN ID = 11 has been removed!\n
+
+    ###Verify Add button should be visible
+    SL.Wait Until Element Is Visible               ${ADD_WAN_BUTTON}
+    ...                                            timeout=20s
+    ...                                            error=\nAdd Button Not Found
+
+    ###Verify page should contains 4 WAN Services
+    Open Device Info Wan Page
+
+    ${wan_number}=                                 Counting Number Exist WAN
+    Run Keyword If                                 ${wan_number} != ${4}    Fail    \nWAN number should equal 4 now\n
+    Log To Console                                 \nCheck WAN Status of 4 Exist WAN\n
+    Check Wan Status                               4000    Connected
+    Log To Console                                 \nStatus WAN 4000 is Connected\n
+    Check Wan Status                               441     Connecting
+    Log To Console                                 Status WAN 441 is Disconnected\n
+    Check Wan Status                               400     Connecting
+    Log To Console                                 \nStatus WAN 400 is Disconnected\n
+    Check Wan Status                               1014     Connected
+    Log To Console                                 \nStatus WAN 1014 is Connected\n
+
+    ####Remove 1 existed Wan Service
+    Log To Console                                 \nAccess to Network Settings Wan Page and Remove WAN IPoE with VLAN ID = 1014\n
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+    Remove Wan Service                             vlan_id=1014
+    Log To Console                                 \nWAN IPoE with VLAN ID = 1014 has been removed!\n
+
+    ###Verify Add button should be visible
+    SL.Wait Until Element Is Visible               ${ADD_WAN_BUTTON}
+    ...                                            timeout=20s
+    ...                                            error=\nAdd Button Not Found
+
+    ###Verify page should contains 3 WAN Services
+    Open Device Info Wan Page
+
+    ${wan_number}=                                 Counting Number Exist WAN
+    Run Keyword If                                 ${wan_number} != ${3}    Fail    \nWAN number should equal 3 now\n
+    Log To Console                                 \nCheck WAN Status of 3 Exist WAN\n
+    Check Wan Status                               4000    Connected
+    Log To Console                                 \nStatus WAN 4000 is Connected\n
+    Check Wan Status                               441     Connecting
+    Log To Console                                 Status WAN 441 is Disconnected\n
+    Check Wan Status                               400     Connecting
+    Log To Console                                 \nStatus WAN 400 is Disconnected\n
+
+    SL.Close All Browsers
+
+    [Teardown]    Run Keyword And Ignore Error     GW020BRC_FUNC_22_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_22
+    # GW020BRC_FUNC_22

@@ -1,0 +1,51 @@
+*** Settings ***
+Library                                       AppiumLibrary   run_on_failure=AL.Capture Page Screenshot    WITH NAME    AL
+Resource                                      appium/Settings/AppiumSettingsWifiLib.txt
+Resource                                      variables/AllVariables.txt
+
+*** Variables ***
+
+*** Keywords ***
+Watching VLC on Smartphone
+    [Arguments]                               ${remote_server}
+    ...                                       ${remote_port}
+    ...                                       ${platform}
+    ...                                       ${version}
+    ...                                       ${ue_device_name}
+    ...                                       ${vlc_channel}=rtp://@232.84.1.28:8142
+    ...                                       ${vlc_duration}=90
+
+    AL.Open Application                       http://${remote_server}:${remote_port}/wd/hub
+    ...                                       platformName=${platform}
+    ...                                       platformVersion=${version}
+    ...                                       deviceName=${ue_device_name}
+    ...                                       appPackage=org.videolan.vlc
+    ...                                       appActivity=StartActivity
+    ...                                       unicodeKeyboard=${TRUE}
+    ...                                       newCommandTimeout=0
+    AL.Wait Until Page Contains Element       id=com.android.packageinstaller:id/permission_allow_button
+    ...                                       timeout=30
+    AL.Click Element                          id=com.android.packageinstaller:id/permission_allow_button
+    AL.Wait Until Page Contains Element       xpath=/hierarchy/android.widget.FrameLayout/android.widget.LinearLayout/android.widget.FrameLayout/android.widget.FrameLayout/android.widget.FrameLayout/android.support.v4.widget.DrawerLayout/android.widget.FrameLayout/android.support.v7.widget.RecyclerView/android.support.v7.widget.LinearLayoutCompat[5]
+    ...                                       timeout=30
+    AL.Click Element                          xpath=/hierarchy/android.widget.FrameLayout/android.widget.LinearLayout/android.widget.FrameLayout/android.widget.FrameLayout/android.widget.FrameLayout/android.support.v4.widget.DrawerLayout/android.widget.FrameLayout/android.support.v7.widget.RecyclerView/android.support.v7.widget.LinearLayoutCompat[5]
+    AL.Wait Until Page Contains Element       xpath=/hierarchy/android.widget.FrameLayout/android.widget.FrameLayout/android.widget.FrameLayout/android.widget.ScrollView/android.widget.RelativeLayout/TextInputLayout/android.widget.FrameLayout/android.widget.EditText
+    ...                                       timeout=30
+    AL.Input Text                             xpath=/hierarchy/android.widget.FrameLayout/android.widget.FrameLayout/android.widget.FrameLayout/android.widget.ScrollView/android.widget.RelativeLayout/TextInputLayout/android.widget.FrameLayout/android.widget.EditText
+    ...                                       ${vlc_channel}
+    AL.Wait Until Page Contains Element       id=org.videolan.vlc:id/send
+    ...                                       timeout=30
+    AL.Click Element                          id=org.videolan.vlc:id/send
+    Log To Console                            Watching Video on VLC in ${vlc_duration}s
+    Sleep                                     ${vlc_duration}
+    Log To Console                            Watching Video on VLC in ${vlc_duration}s complete!!!
+
+# *** Test cases ***
+# Watching VLC on Smartphone 
+    # Watching VLC on Smartphone                remote_server=${APPIUM_REMOTE_SERVER}
+    # ...                                       remote_port=${APPIUM_REMOTE_PORT}
+    # ...                                       platform=${PLATFORM_NAME}
+    # ...                                       version=${PLATFORM_VERSION}
+    # ...                                       ue_device_name=${DEVICE_NAME}
+    # ...                                       vlc_channel=rtp://@232.84.1.28:8142
+    # ...                                       vlc_duration=${VIDEO_DURATION_SMARTPHONE}

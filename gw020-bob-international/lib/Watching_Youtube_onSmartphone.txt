@@ -1,0 +1,77 @@
+*** Settings ***
+Library                       AppiumLibrary   run_on_failure=AL.Capture Page Screenshot    WITH NAME    AL
+Library                       String           WITH NAME    STR
+Library                       Collections      WITH NAME    COL
+Library                       CSVLibrary       WITH NAME    CSV
+Resource                      appium/Settings/AppiumSettingsWifiLib.txt
+Resource                      Ping_onSmartphone.txt
+Resource                      variables/AllVariables.txt
+Library                       pabot.PabotLib
+
+*** Variables ***
+${yomo_app_package}           de.yomoapp
+${yomo_app_activity}         .LaunchActivity
+${APPIUM_REMOTE_PORT_2}       4724
+
+*** Keywords ***
+Open Yomo Application
+    [Arguments]    ${remote_server}    ${remote_port}    ${platform}    ${version}    ${ue_device_name}
+    AL.Open Application    http://${remote_server}:${remote_port}/wd/hub    platformName=${platform}    platformVersion=${version}     deviceName=${ue_device_name}      appPackage=${yomo_app_package}     appActivity=${yomo_app_activity}   unicodeKeyboard=${TRUE}    newCommandTimeout=86400
+    AL.Wait Until Page Contains Element    id=com.android.packageinstaller:id/permission_allow_button    timeout=60
+    AL.Click Element    id=com.android.packageinstaller:id/permission_allow_button
+    AL.Wait Until Page Contains Element    id=com.android.packageinstaller:id/permission_allow_button    timeout=30
+    AL.Click Element    id=com.android.packageinstaller:id/permission_allow_button
+    AL.Wait Until Page Contains Element    id=de.yomoapp:id/agreeButton    timeout=30
+    AL.Click Element    id=de.yomoapp:id/agreeButton
+    AL.Wait Until Page Contains Element    id=de.yomoapp:id/youtube    timeout=30
+    AL.Click Element    id=de.yomoapp:id/youtube
+    AL.Wait Until Page Contains Element    id=de.yomoapp:id/shouldRateNoButton    timeout=30
+    AL.Click Element    id=de.yomoapp:id/shouldRateNoButton
+
+Search And Play YouTube
+    [Arguments]        ${video_url}
+    AL.Wait Until Page Contains Element    accessibility_id=Search YouTube    timeout=60
+    AL.Click Element    accessibility_id=Search YouTube
+    ${element1_existed}=    Run Keyword And Return Status    AL.Wait Until Page Contains Element    xpath=//android.view.View[contains(@content-desc, "Search")]    timeout=60
+    Run Keyword If    '${element1_existed}' == 'True'     AL.Input Text    xpath=//android.view.View[contains(@content-desc, "Search")]    ${video_url}
+    Run Keyword If    '${element1_existed}' == 'False'     AL.Wait Until Page Contains Element     xpath=//android.webkit.WebView[contains(@content-desc, "Home")]/android.view.View[1]/android.view.View[2]/android.view.View/android.widget.Spinner    timeout=30
+    Run Keyword If    '${element1_existed}' == 'False'     AL.Input Text     xpath=//android.webkit.WebView[contains(@content-desc, "Home")]/android.view.View[1]/android.view.View[2]/android.view.View/android.widget.Spinner    ${video_url}
+    AL.Wait Until Page Contains Element     xpath=//android.widget.Button[@content-desc="Search YouTube"]    timeout=60
+    AL.Click Element        xpath=//android.widget.Button[@content-desc="Search YouTube"]
+    ${element_existed}=    Run Keyword And Return Status   AL.Wait Until Page Contains Element   accessibility_id=1 hour, 49 minutes   timeout=30
+    Run Keyword If    '${element_existed}' == 'True'   AL.Click Element    accessibility_id=1 hour, 49 minutes
+    Run Keyword If    '${element_existed}' == 'False'     AL.Wait Until Page Contains Element    xpath=//android.view.View[contains(@content-desc, "Doraemon")]    timeout=30
+    Run Keyword If    '${element_existed}' == 'False'     AL.Click Element    xpath=//android.view.View[contains(@content-desc, "Doraemon")]
+
+    # Turn off autoplay
+    ${autoplay}=    Run Keyword And Return Status    AL.Wait Until Page Contains Element    xpath=//android.widget.ToggleButton[@content-desc="Autoplay"]    timeout=30
+    Run Keyword If    ${autoplay} == False    AL.Click Element    xpath=//android.widget.ToggleButton[@content-desc="Autoplay"]
+
+# *** Test cases ***
+# Watching Youtube on Smartphone
+    # Sleep                                           2s
+    # Acquire Lock                                    Huyenlock
+    # Release Lock                                    Huyenlock
+
+    # # ###########Verify UE devices connected to WiFi
+    # Log To Console                          \nVerify UE device connected to WiFi ${WIFI_SSID_1}
+    # Open Wifi Picker Activity               remote_server=${APPIUM_REMOTE_SERVER}
+    # ...                                     remote_port=${APPIUM_REMOTE_PORT_2}
+    # ...                                     platform=${PLATFORM_NAME}
+    # ...                                     version=${PLATFORM_VERSION}
+    # ...                                     ue_device_name=${DEVICE_NAME_2}
+    # Turn On Wifi
+    # ${ip}=                                  Check connect to wifi and get ip address   security_mode=WPA2 PSK   wifi_ssid=${WIFI_SSID_1}   wifi_password=${WIFI_PASS}
+    # Should Contain                          ${ip}           ${ONT_SUBNET}
+
+    # #####Watching Youtube
+    # Open Yomo Application                           remote_server=${APPIUM_REMOTE_SERVER}
+    # ...                                             remote_port=${APPIUM_REMOTE_PORT_2}
+    # ...                                             platform=${PLATFORM_NAME}
+    # ...                                             version=${PLATFORM_VERSION}
+    # ...                                             ue_device_name=${DEVICE_NAME_2}
+    # Search And Play YouTube                         video_url=https://youtu.be/iNGwa391PYgs
+    # Sleep                                           ${YOUTUBE_DURATION_SMPHONE}
+    # Log To Console                                  \nWatching Youtube in ${YOUTUBE_DURATION_SMPHONE} complete!!!
+    # AL.Close Application
+

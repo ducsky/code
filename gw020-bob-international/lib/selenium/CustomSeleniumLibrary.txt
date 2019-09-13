@@ -1,0 +1,231 @@
+*** Settings ***
+Documentation     This resource define keywords of SeleniumHQ in Robot Framework
+Library           SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library           String              WITH NAME    STR
+
+*** Keywords ***
+open
+    [Documentation]         Open a URL
+    [Arguments]             ${url}
+    Go To                   ${url}
+	
+openBrowser
+    [Documentation]         Open a new browser to a URL
+    [Arguments]             ${url}        ${browser}=None        ${remote_url}=False     ${ff_profile_dir}=None 
+    Run Keyword If    '${browser}' == 'firefox' or '${browser}' == 'ff'     SL.Open Browser      ${url}    browser=${browser}     alias=None      remote_url=${remote_url}     ff_profile_dir=${ff_profile_dir}
+    ...       ELSE     SL.Open Browser      ${url}    browser=${browser}     alias=None      remote_url=${remote_url}
+    SL.Maximize Browser Window
+	
+setSeleniumSpeed
+    [Documentation]         Sets the delay that is waited after each Selenium command. The value can be given as a number that is considered to be seconds.
+    [Arguments]                    ${speed}
+    SL.Set Selenium Speed          ${speed}
+	
+setSeleniumTimeout
+    [Documentation]         Sets the timeout that is used by various keywords, for example keyword "Wait For Element Is Visible"
+    [Arguments]                    ${timeout}
+    SL.Set Selenium Timeout        ${timeout}
+	
+click
+    [Documentation]         Wait until element is visible and click element by locator
+    [Arguments]    ${locator}
+    SL.Wait Until Element Is Visible      ${locator}
+    SL.ELement Should Be Visible          ${locator}
+    #SL.Wait Until Element Is Enabled      ${locator}
+    #SL.Element Should Be Enabled          ${locator}
+    SL.Click Element    ${locator}
+	
+type
+    [Documentation]         Wait until element is visible and input text to element by locator
+    [Arguments]    ${locator}    ${value}
+    SL.Wait Until Element Is Visible      ${locator}
+    #SL.Wait Until Element Is Enabled      ${locator}
+    SL.Input Text    ${locator}    ${value}
+	
+doubleClick
+    [Documentation]         Wait until element is visible and double click element by locator
+    [Arguments]    ${locator}
+    SL.Wait Until Element Is Visible      ${locator}
+    #SL.Wait Until Element Is Enabled      ${locator}
+    SL.Double Click Element    ${locator}
+	
+closeAll
+    [Documentation]         Close all browsers
+    SL.Close All Browsers
+	
+select
+    [Arguments]    ${element}    ${value}
+    Select From List    ${element}    ${value}
+	
+selectFrame
+    [Arguments]    ${index}=None    ${relative}=None
+    SL.Unselect Frame
+    Return From Keyword If          "${relative}" != "None"     True
+    ${frame_name}=    SL.Execute Javascript     return window.frames[${index}].name;
+    ${frame_type}=    SL.Execute Javascript     return window.frames[${index}].frameElement.nodeName;
+    Run Keyword If    '${frame_type}' == 'FRAME'    SL.Select Frame   xpath=//frame[@name="${frame_name}"]
+	...    ELSE IF    '${frame_type}' == 'IFRAME'    SL.Select Frame   xpath=//iframe[@name="${frame_name}"]
+
+addSelection
+    [Arguments]    @{varargs}
+    #Log To Console      ${varargs[0]}, ${varargs[1]}
+    Return From Keyword    doNothing
+	
+assertAlert
+    [Arguments]         ${title}
+    ${message}          Set Variable     None
+    ${message} =        SL.Handle Alert
+    Run Keyword If     '${message}' == '${title}'          Log To Console         \nPopup Appear
+	
+verifyValue
+    [Documentation]     Verify element has value as expected
+    ...                 If element is checkbox/radio button, value is on/off
+    [Arguments]    @{varargs}
+    ${listLength}=    Get Length    ${varargs}
+    ${value}=       SL.Get Value      ${varargs[0]}
+    ${isCheckbox}=      Run Keyword And Return Status    SL.Page Should Contain Checkbox     ${varargs[0]}
+    Run Keyword If     ${listLength} > 1      verifyCheckbox    @{varargs}
+    ...       ELSE     Should Be Equal        ${value}          ${varargs[1]}
+
+verifyCheckbox
+    [Arguments]    @{varargs}
+    Run Keyword If     '${varargs[1]}' == 'on' and ${isCheckbox}     SL.Checkbox Should Be Selected       ${varargs[0]}
+    ...    ELSE IF     '${varargs[1]}' == 'off' and ${isCheckbox}    SL.Checkbox Should Not Be Selected   ${varargs[0]}
+
+verifyAttribute
+    [Documentation]     Verify element's attribute matches expected value
+    [Arguments]         ${locatorWithAttribute}    ${value}
+    ${locator}     ${attribute}=    STR.Split String From Right     ${locatorWithAttribute}     @     1
+    ${attributeValue}=     SL.Get Element Attribute    ${locator}     ${attribute}
+    Should Be Equal        ${attributeValue}     ${value}
+
+verifyAttributeContains
+    [Documentation]     Verify element's attribute contains value
+    [Arguments]         @{varargs}
+    ${locator}     ${attribute}=    STR.Split String From Right     ${varargs[0]}     @     1
+    ${attributeValue}=     SL.Get Element Attribute    ${locator}     ${attribute}
+    Should Contain         ${attributeValue}     ${varargs[1]}
+
+verifyText
+    [Documentation]     Verify element has text
+    [Arguments]    ${element}    ${value}
+    ${text}=       SL.Get Text     ${element}
+    Should Be Equal     ${text}    ${value}
+
+verifyContainText
+    [Documentation]     Verify element text contains value
+    [Arguments]    ${element}    ${value}
+    SL.Element Should Contain    ${element}    ${value}
+
+verifyTextPresent
+    [Documentation]     Verify page contains text
+    [Arguments]         ${text}
+    SL.Page Should Contain     ${text}
+
+verifyTextNotPresent
+    [Documentation]     Verify page should not contain text
+    [Arguments]         ${text}
+    SL.Page Should Not Contain      ${text}
+
+verifyElementPresent
+    [Documentation]     Verify element present in page
+    [Arguments]         @{varargs}
+    SL.Page Should Contain Element      ${varargs[0]}
+
+verifyElementNotPresent
+    [Documentation]     Verify element not present in page
+    [Arguments]         @{varargs}
+    SL.Page Should Not Contain Element      ${varargs[0]}
+
+waitForElementPresent
+    [Documentation]    Wait until element is visible
+    [Arguments]        @{varargs}
+    ${listLength}=     Get Length    ${varargs}
+    ${pageNotContainEle}=    Run Keyword And Return Status    SL.Wait Until Page Does Not Contain Element   ${varargs[0]}    timeout=20s
+    Return From Keyword If    '${pageNotContainEle}' == 'False'
+    Run Keyword If     ${listLength} > 1      supportWaitForElementPresent    @{varargs}
+    ...      ELSE      Run Keyword     SL.Wait Until Element Is Visible    ${varargs[0]}
+
+supportWaitForElementPresent
+    [Arguments]         @{varargs}
+    Run Keyword If      ${varargs[1]} != '' or ${varargs[1]} != 'null'    SL.Wait Until Element Is Visible    ${varargs[0]}    ${varargs[1]}
+
+waitForElementNotPresent
+    [Documentation]     Wait until element is not visible
+    [Arguments]        @{varargs}
+    ${listLength}=     Get Length    ${varargs}
+    ${pageContainEle}=    Run Keyword And Return Status    SL.Page Should Contain Element    ${varargs[0]}
+    Return From Keyword If    '${pageContainEle}' == 'False'
+    Run Keyword If     ${listLength} > 1      supportWaitForElementNotPresent    @{varargs}
+    ...      ELSE      Run Keyword     SL.Wait Until Element Is Not Visible    ${varargs[0]}
+
+supportWaitForElementNotPresent
+    [Arguments]         @{varargs}
+    Run Keyword If      ${varargs[1]} != '' or ${varargs[1]} != 'null'    SL.Wait Until Element Is Not Visible    ${varargs[0]}    ${varargs[1]}
+
+waitForTextPresent
+    [Documentation]     Wait until text is visible
+    [Arguments]         @{varargs}
+    SL.Wait Until Page Contains    ${varargs[0]}
+
+waitForTextNotPresent
+    [Documentation]     Wait until text is not visible
+    [Arguments]         @{varargs}
+    SL.Wait Until Page Does Not Contain    ${varargs[0]}
+
+storeText
+    [Arguments]    ${element}       ${value}
+    ${value}=     SL.Get Text    ${element}
+    Set Test Variable      ${value}
+
+storeValue
+    [Arguments]    ${element}       ${value}
+    ${value}=     SL.Get Value    ${element}
+    Set Test Variable      ${value}
+
+store
+    [Documentation]     Store expression into variable
+    [Arguments]     @{varargs}
+    Set Test Variable      ${varargs[1]}     ${varargs[0]}
+
+runScript
+    [Documentation]     Execute Javascript code
+    [Arguments]         @{varargs}
+    ${javascript}=      Set Variable    ${EMPTY}
+    :FOR     ${item}    IN     @{varargs}
+    \        ${javascript}=    Catenate     ${javascript}     ${item}
+    SL.Execute Javascript      ${javascript}
+
+mouseOver
+    [Documentation]     Simulates hovering mouse over the element locator. 
+    [Arguments]         ${locator}
+    SL.Wait Until Element Is Visible      ${locator}
+    SL.Wait Until Element Is Enabled      ${locator}
+    SL.Mouse Over       ${locator}
+          
+fileUpload
+    [Documentation]     Upload file
+    [Arguments]         @{varargs}
+    ${prefix}     ${fullXpath}=       STR.Split String From Right    ${varargs[0]}     //    1
+    ${javascript}=      Catenate     SEPARATOR=      
+    ...                 var nodes = [];
+    ...                 var element = document.evaluate("//${fullXpath}", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+    ...                 if (element.getAttribute("style") != null && element != null) {
+	...                     if(element.getAttribute("style").includes("display: none")) {
+	...                         nodes.push(element); }}
+    ...                 while(element.parentNode != null) {
+    ...                     var parent = element.parentNode;
+    ...                     if (parent.nodeName.toLowerCase() != "#document") {
+    ...                         if (parent.style.display.includes("none")) {
+    ...                             nodes.unshift(parent);
+    ...                             parent.style.display = "block"; }}
+    ...                         element = parent; 
+    ...                  }
+    SL.Execute Javascript     ${javascript}
+    SL.Wait Until Element Is Visible       ${varargs[0]}
+    SL.Choose File      ${varargs[0]}      ${varargs[1]}
+ 
+pause
+    [Documentation]     Delay an amount of time (in milliseconds)
+    [Arguments]         ${duration}
+    Sleep               ${duration}ms

@@ -1,0 +1,152 @@
+*** Settings ***
+Library     SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library     SSHLibrary    WITH NAME    SSHL
+Resource    selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource    selenium/AdvancedFeatures/DNS/SeleniumAdvancedFeaturesDNSDynamicDNSLib.txt
+Resource    selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource    selenium/Login/SeleniumLoginLib.txt
+Resource    variables/AllVariables.txt
+Resource    selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource    selenium/Management/Reboot/SeleniumManagementRebootLib.txt
+Resource    ssh/SshLib.txt
+
+*** Variables ***
+${URL_CHECK_IPv6}    https://ipv6.google.com
+
+*** Keywords ***
+GW020BRC_FUNC_12_TC_01_Teardown
+    ${wan_vlan}=                             Get Variable Value    ${wan_vlan}  
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open  
+    Open Network Settings Wan Page           url=${NETWORK_SETTINGS_WAN_URL}
+    Remove Wan Service                       vlan_id=${wan_vlan}
+    SL.Delete All Cookies
+    SL.Close All Browsers 
+    SSHL.Close All Connections
+
+Verify GW020BRC FUNC 12 TC 01
+    [Arguments]                              ${ipv4_ping}=8.8.8.8
+    ...                                      ${ipv6_ping}=2001:4860:4860::8888
+    ...                                      ${prefix_ipv6}=2001:ee0:
+    ###########Verify IPv6 via Telnet ONT
+    ${wan_interface}=                        Get Variable Value    ${wan_interface}
+    Telnet To ONT Device                     ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                      ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                      ssh_server_password=${REMOTE_SERVER_PASSWORD}    
+    Sleep                                    5s
+    # Check Lan
+    SSHL.Write                               ifconfig br0
+    ${check_output_lan}=                     SSHL.Read Until    >
+    ## Check Lan
+    Should Match Regexp                      ${check_output_lan}    [0-9]{1,3}\\.+[0-9]{1,3}\\.+[0-9]{1,3}\\.+[0-9]{1,3}
+    Should Contain                           ${check_output_lan}    ${prefix_ipv6}
+    # Check Wan
+    SSHL.Write                               ifconfig ${wan_interface}
+    ${check_output_wan}=                     SSHL.Read Until    >
+    ## Not Match Ipv4
+    Should Not Match Regexp                  ${check_output_wan}    [0-9]{1,3}\\.+[0-9]{1,3}\\.+[0-9]{1,3}\\.+[0-9]{1,3}
+    ## Only Ipv6
+    Should Contain                           ${check_output_wan}    ${prefix_ipv6}
+    # Check ping
+    SSHL.Write                               ping -6 -c 3 ${ipv6_ping}
+    ${ping_status}=                          SSHL.Read Until    >
+    Should Contain                           ${ping_status}    0% packet loss
+
+    # Check PC get IPv6
+    Open Connection And Login To Remote Machine    ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD} 
+    ${lan_interface}=                        SSHL.Execute Command    ifconfig | grep -B1 "inet addr:192.168" | awk '$1!="inet" && $1!="--" {print $1}'
+    Log To Console                           \nVerify cannot ping ${ipv4_ping}
+    Ping Should Failed                       ${ipv4_ping}    ${lan_interface}
+    Log To Console                           \nVerify ping to IPv6 
+    ${ping_ipv6}=                            SSHL.Execute Command    ping6 -c 3 ${ipv6_ping} -I ${lan_interface}
+    Should Contain                           ${ping_ipv6}    3 packets received
+    # Verify IPv6 via web
+    Sleep									 5s
+    SL.Go To                                 ${URL_CHECK_IPv6}
+    Sleep									 5s
+
+GW020BRC_FUNC_12_TC_01
+    [Arguments]                              ${wan_vlan}
+    ...                                      ${username_ndra_pppoe}
+    ...                                      ${password_ndra_pppoe}
+    ...                                      ${ipv4_ping}=8.8.8.8
+    ...                                      ${ipv6_ping}=2001:4860:4860::8888
+    ...                                      ${prefix_ipv6}=2001:ee0:
+
+    Log To Console                           \nLogin WEB GUI ONT.
+    SL.Set Selenium Speed 	                 1
+    Set Test Message                         *HTML* <b>GW020BRC_FUNC_12_TC_01</b> 
+    Set Suite Variable                       ${wan_vlan}
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+
+    Log To Console                           \nCreate WAN PPPoE IPv6 Mode Ndra.
+    Open Network Settings Wan Page           url=${NETWORK_SETTINGS_WAN_URL}
+    Add New Wan Service                      wan_service_type=PPPoE
+    Select PPPoE Wan Service                 network_protocol=IPv6
+    ...                                      priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                                      vlan_id=${wan_vlan}
+    ...                                      ppp_username=${username_ndra_pppoe}
+    ...                                      ppp_password=${password_ndra_pppoe}
+    ...                                      routing_default_gw_ipv6=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                      wan_interface_ipv6=${PPPOE_WAN_INTERFACE}
+    ...                                      configure_advanced_wan_pppoe=True
+    # Unselect Checkbox Mode Unnumbered
+    SL.Wait Until Element Is Visible         xpath=//input[@name="enblUnnumbered"]
+    ...                                      timeout=10s
+    SL.Unselect Checkbox                     xpath=//input[@name="enblUnnumbered"]
+    Apply Wan Settings
+    # Waiting IPv6
+    Sleep                                    30s
+    Open Device Info Wan Page
+    Wan Status Should Be Connected           vlan_id=${wan_vlan} 
+    ${wan_interface}=                        Get Wan Interface    vlan_id=${wan_vlan}
+    Set Suite Variable                       ${wan_interface}   
+
+    Log To Console                           \nGet IPWAN IPv4 is (null)
+    ${ipv4_wan}=                             Get Wan Ip Address    vlan_id=${wan_vlan} 
+    Should Not Match Regexp                  ${ipv4_wan}    [0-9]{1,3}\\.+[0-9]{1,3}\\.+[0-9]{1,3}\\.+[0-9]{1,3}
+    Log To Console                           \nGet IPWAN IPv6
+    ${ipv6_wan}=                             Get Wan IPv6 Address    vlan_id=${wan_vlan}    
+    Should Not Be Empty                      ${ipv6_wan}    
+    # Verify Befor Reboot
+    Sleep									 1s
+    Verify GW020BRC FUNC 12 TC 01
+    Sleep									 1s
+    # Reboot
+    Run Keyword And Continue On Failure      Reboot Device Via Web GUI
+    Sleep									 10s
+    SL.Go To                                 url=${LOGIN_URL}
+    Input Username                           ${ONT_WEB_USER}
+    Input User Password                      ${ONT_WEB_PASS}
+    Submit Credentials
+    Sleep                                    5s 
+    Welcome Page Should Be Open
+    Sleep									 5s
+    # Verify After Reboot
+    Verify GW020BRC FUNC 12 TC 01
+
+    SL.Close Browser
+
+    [Teardown]                               Run Keyword And Ignore Error    GW020BRC_FUNC_12_TC_01_Teardown
+
+# *** Test Cases ***
+# GW020BRC_FUNC_12_TC_01
+    # GW020BRC_FUNC_12_TC_01
+    # ...    wan_vlan=514
+    # ...    username_ndra_pppoe=ansv2
+    # ...    password_ndra_pppoe=abc123
+    # ...    ipv4_ping=8.8.8.8
+    # ...    ipv6_ping=2001:4860:4860::8888
+    # ...    prefix_ipv6=2001:ee0:
+   

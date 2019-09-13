@@ -1,0 +1,253 @@
+*** Settings ***
+Library                                        SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library                                        SSHLibrary    WITH NAME    SSHL
+Library                                        String     WITH NAME    STR
+Resource                                       ssh/SshLib.txt
+Resource                                       selenium/Login/SeleniumLoginLib.txt
+Resource                                       selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource                                       selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource                                       selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessBasicLib.txt
+Resource                                       selenium/AdvancedFeatures/NAT/SeleniumAdvancedFeaturesNatVirtualServers.txt
+Resource                                       selenium/AdvancedFeatures/DNS/SeleniumAdvancedFeaturesDNSDynamicDNSLib.txt
+Resource                                       variables/AllVariables.txt
+Resource                                       selenium/SeleniumCommonLib.txt
+Resource                                       selenium/Management/Settings/SeleniumManagementSettingsRestoreLib.txt
+Resource                                       selenium/Management/Settings/SeleniumManagementSettingsBackupLib.txt
+Resource                                       selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Library                                        OperatingSystem
+Library                                        selenium/WebElement.py
+
+*** Variables ***
+${LOGIN_BUTTON}                                xpath=//button[@class="loginBtn"]
+
+*** Keywords ***
+GW020BRC_FUNC_55_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+    SSHL.Close All Connections
+
+Del Old File
+    Open Connection And Login To Remote Machine    ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+    SSHL.Execute Command                           mkdir -p ${DOWNLOAD_DIR} && rm -f ${DOWNLOAD_DIR}/${CONFIG_FILE_NAME}
+    SSHL.Execute Command                           touch ${DOWNLOAD_DIR}/${INVALID_CONFIG_FILE_NAME} 
+    SSHL.Close Connection
+
+GW020BRC_FUNC_55_01
+    SL.Set Selenium Speed                          0.7    
+    Log To Console                                 BACKUP CONFIG
+
+#   Login With Admin Account
+    Log To Console                                 \nStep 1.1: Login to WEBGUI
+    Login To Browser                               remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                            url=${LOGIN_URL}
+    ...                                            username=${ONT_WEB_USER}
+    ...                                            password=${ONT_WEB_PASS}
+    ...                                            browser=chrome
+    Welcome Page Should Be Open
+
+#   Setup Enviroment
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+#   Add WAN PPPoE
+    Log To Console                                \n\nStep 1.2: Create PPPoE WAN with correct PPP username/password\n
+    Create New Wan PPPoE                           url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                            network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                                            priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                                            vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    ...                                            ppp_username=${CORRECT_PPP_USERNAME}
+    ...                                            ppp_password=${CORRECT_PPP_PASSWORD}
+    ...                                            routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                            wan_interface=${PPPOE_WAN_INTERFACE}
+
+    ##Step 1.3: Verify WAN should success on web
+    Log To Console                               \nStep 1.3: Verify WAN should success on web\n\n
+    Wait Until Keyword Succeeds                    5x    1s    Wan Connection Should Be Success              vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    ${wan_interface}=                             Get Wan Interface      vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+#   #####Step 2.1: Add DDNS
+    Log To Console                                 \n\nStep 2.1: Add DDNS\n
+    Go To DDNS Config Page
+    Add Config DDNS                                ddns_mode=noip
+    ...                                            ddns_hostname=${DDNS_HOSTNAME}
+    ...                                            ddns_interface=ppp0.2
+    ...                                            ddns_username=${DDNS_USERNAME}
+    ...                                            ddns_password=${DDNS_PASSWORD}
+
+#   ####Step 2.2: Add Virtual server
+    Log To Console                                \nStep 2.2: Create NAT Virtual server\n
+    Open Virtual Servers Group Page
+    Create Virtual Server For Iperf3              server_ip_address=192.168.1.2
+    ...                                           port_start=5201
+    ...                                           port_end=5201
+    ...                                           interface_name=${wan_interface}
+
+#####Enable Wireles
+    Open Wireless Configure Page                  wireless_configure_url=${WIRELESS_CONFIGURE_URL}
+    Log To Console                               \nEnable Wireless\n
+    Enable Wireless
+
+########Get original SSID
+    Log To Console                               \nGet original SSIDs...\n
+    ${DEFAULT_SSID}=                             Get SSID
+    Set Suite Variable                           ${DEFAULT_SSID}
+
+#####Step 2.3: Change WiFi Name for Main SSID to '${WIFI_SSID_1}'
+    Log To Console                                \nStep 2.3: Change WiFi Name for Main SSID to '${WIFI_SSID_1}'\n
+    Name SSID                                     ssid=${WIFI_SSID_1}
+
+
+    ####Step 3: Do Backup Config
+    Log To Console                                \nRemove old config file in local if exist
+    Del Old File
+    Log To Console                                \n\nStep 3: Backup config\n
+    Backup Config
+    Sleep                                          5s
+    Log To Console                                \nBackup Config successfull!
+
+    Log To Console                                 Download config file to local
+    Get Remote File                                server_ip=${REMOTE_SERVER_IP}
+    ...                                            user_name=${REMOTE_SERVER_USERNAME}
+    ...                                            password=${REMOTE_SERVER_PASSWORD}
+    ...                                            remote_file=${DOWNLOAD_DIR}/${CONFIG_FILE_NAME}
+
+    Delete All Cookies
+    Close All Browsers
+    Close All Connections
+
+GW020BRC_FUNC_55_02
+    Log To Console                            \n\nTeardown to original config
+    Login To Browser                          remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                       url=${LOGIN_URL}
+    ...                                       username=${ONT_WEB_USER}
+    ...                                       password=${ONT_WEB_PASS}
+    ...                                       browser=chrome
+    Welcome Page Should Be Open
+
+#   Remove Nat Virtual Server
+    Log To Console                               Go to nat virtual servers page, remove virtual server
+    Open Virtual Servers Group Page
+    :FOR                                     ${i}     IN RANGE    2    9999
+    \    ${element_is_visible}=              Run Keyword And Return Status       SL.Element Should Be Visible    xpath=//table/tbody/tr[${i}]
+    \    Exit For Loop If                    not ${element_is_visible}
+    \    ${contain_iperf3_virtual_server}=   Run Keyword And Return Status       SL.Element Should Be Visible    xpath=//table/tbody/tr[${i}]/td[contains(text(),"iperf3")]
+    \    Run Keyword If                      ${contain_iperf3_virtual_server}    Remove Iperf3 Virtual Server    ${i}
+    \    Exit For Loop If                    ${contain_iperf3_virtual_server}
+
+#Change Wifi Name To ${DEFAULT_SSID}
+    ${DEFAULT_SSID}=                        Get Variable Value    ${DEFAULT_SSID}    
+    Log To Console                          \nChange wifi name to ${DEFAULT_SSID}
+    Open Wireless Configure Page
+    Name SSID                               ssid=${DEFAULT_SSID}
+
+#   Remove WAN config
+    Log To Console                          \nRemove Wan config type PPPOE
+    Open Network Settings Wan Page           url=${NETWORK_SETTINGS_WAN_URL}
+    Log To Console                           Setup Enviroment, remove existed Wan
+    Remove Wan Service                       vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+    Delete All Cookies
+    Close All Browsers
+
+GW020BRC_FUNC_55_03
+    Log To Console                                 RESTORE VALID CONFIG FILE
+#   Login With Admin Account
+    Log To Console                                 \nStep 1.1: Login to WEBGUI
+    Login To Browser                               remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                            url=${LOGIN_URL}
+    ...                                            username=${ONT_WEB_USER}
+    ...                                            password=${ONT_WEB_PASS}
+    ...                                            browser=chrome
+    Welcome Page Should Be Open
+
+#   Restore config
+    Log To Console                                \nRestore config file\n
+    Go To Restore Config Page
+    Run Keyword And Continue On Failure           Update And Validate    config_file_path=${CONFIG_FILE_NAME}
+
+    ###Relogin
+    SL.Go To                                       url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible               ${LOGIN_BUTTON}
+    ...                                            timeout=20s
+    ...                                            error=\nLogin Page Does Not Found!
+    Input Username                                 username=${ONT_WEB_USER}
+    Input User Password                            password=${ONT_WEB_PASS}
+    Submit Credentials
+    Welcome Page Should Be Open
+
+    ##Verify WAN should success on web
+    Log To Console                                \nVerify WAN should success on web\n\n
+    Wait Until Keyword Succeeds                    5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+#   Check virtual server exist
+    Log To Console                                \nCheck virtual server exist\n
+    Open Virtual Servers Group Page
+    ${Exist}=                                      Check Virtual Server Exist       virtual_server=iperf3
+    Should Be Equal                               '${Exist}'        'True'
+
+#   Check ddns hostname exist
+    Log To Console                                 \nCheck ddns hostname exist\n
+    Go To DDNS Config Page
+    ${Exist}=                                      Check DDNS Host Name Exist       ddns_hostname=${DDNS_HOSTNAME}
+    Should Be Equal                               '${Exist}'        'True'
+
+    Delete All Cookies
+    Close All Browsers
+
+GW020BRC_FUNC_55_04
+    Log To Console                                 RESTORE INVALID CONFIG FILE
+#   Login
+    Login To Browser                               remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                            url=${LOGIN_URL}
+    ...                                            username=${ONT_WEB_USER}
+    ...                                            password=${ONT_WEB_PASS}
+    ...                                            browser=chrome
+    Welcome Page Should Be Open
+
+    ####Get invalid config file to local
+    Get Remote File                           server_ip=${REMOTE_SERVER_IP}
+    ...                                       user_name=${REMOTE_SERVER_USERNAME}
+    ...                                       password=${REMOTE_SERVER_PASSWORD}
+    ...                                       remote_file=${DOWNLOAD_DIR}/${INVALID_CONFIG_FILE_NAME}
+
+#   Restore config with invalid backup config file
+    Log To Console                                \nRestore config with invalid backup config file\n
+    Go To Restore Config Page
+    Update With Invalid Config file               invalid_config_file_path=${INVALID_CONFIG_FILE_NAME}
+    Delete All Cookies
+    Close All Browsers
+
+GW020BRC_FUNC_55
+    Set Test Message                        *HTML* <b>GW020BRC_FUNC_55</b>      
+    Log To Console                          Check Backup Config Function
+    GW020BRC_FUNC_55_01
+    Log To Console                          Change Config
+    GW020BRC_FUNC_55_02
+    Log To Console                          Check Restore Valid Config File Function
+    GW020BRC_FUNC_55_03
+    Log To Console                          Check Restore Invalid Config File Function
+    GW020BRC_FUNC_55_04
+    ######Teardown
+    [Teardown]    Run Keyword And Ignore Error    GW020BRC_FUNC_55_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_55
+    # GW020BRC_FUNC_55

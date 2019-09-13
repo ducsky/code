@@ -1,0 +1,179 @@
+*** Settings ***
+Library                                    SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library                                    SSHLibrary     WITH NAME    SSHL
+Library                                    String         WITH NAME    String
+Resource                                   selenium/Login/SeleniumLoginLib.txt
+Resource                                   selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource                                   selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource                                   selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessBasicLib.txt
+Resource                                   selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource                                   ssh/SshLib.txt
+Resource                                   Watching_Youtube_onPC.txt
+Resource                                   variables/AllVariables.txt
+Resource                                   GW020BRC_FUNC_20_TC_01.txt
+
+*** Variables ***
+${LOGIN_BUTTON}                              xpath=//button[@class="loginBtn"]
+
+*** Keywords ***
+GW020BRC_FUNC_64_TC_01_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+    ###Close SSH
+    SSHL.Close All Connections
+
+GW020BRC_FUNC_64_TC_01
+    Log To Console                                 MTU 2000 - WAN IPOE
+
+    SL.Set Selenium Speed                          0.7
+    Set Test Message                               *HTML* <b>GW020BRC_FUNC_64_TC_01</b>
+    ####STEP 1: Login to WEBGUI and Create IPoE WAN
+    Log To Console                                 \nStep 1.1: Login to WEBGUI
+    Login To Browser                               remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                            url=${LOGIN_URL}
+    ...                                            username=${ONT_WEB_USER}
+    ...                                            password=${ONT_WEB_PASS}
+    ...                                            browser=${BROWSER}
+    Welcome Page Should Be Open
+
+    Log To Console                                 \nStep 1.2: Access to Network Settings Wan Page
+
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+    #Step 1.3: Create IPPoE WAN
+    Create New Wan IPoE                            url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                            network_protocol=${IPOE_NETWORK_PROTOCOL}
+    ...                                            priority=${CORRECT_IPOE_VLAN_PRIORITY}
+    ...                                            vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+
+    ############Step 1.4: Verify IPoE WAN with Dynamic IP should success on web
+    Log To Console                                 \nStep 1.4: Verify IPoE WAN with Dynamic IP should success on web
+    Wait Until Keyword Succeeds                    12x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+    SL.Close Browser
+
+    ###STEP 2: Telnet to ONT, check MTU and Ping: â€œping ${TO_IPOE_GATEWAY} -I ${TEST_CONTROL_PC_LAN_NETWORK_INTERFACE} -c 10 -M do -s 1400â€� from PC
+
+    Log To Console                                 \nStep 2: Telnet to ONT, check MTU and Ping\n
+    Open Connection And Login To Remote Machine    ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+    ...                                            ssh_timeout=20s
+    Log To Console                                 \nStep 2.1: Telnet to ONT
+    SSHL.Write                                     telnet 192.168.1.1
+    Sleep                                          1
+    SSHL.Write                                     admin
+    ${check_output_telnet}=                        SSHL.Read    delay=1s
+    Log To Console                                 Telnet Output: ${check_output_telnet}
+    SSHL.Write                                     ttcn@77CN
+    Sleep                                          1
+    Log To Console                                 \nStep 2.2: Check MTU WAN IPoE\n
+    SSHL.Write                                     ifconfig veip0.4
+    ${check_output_wan}=                           SSHL.Read    delay=20s
+    Log To Console                                 ${check_output_wan}
+    ${mtu_wan}=                                    Run Keyword And Return Status     Should Contain     ${check_output_wan}    MTU:1500
+    Log To Console                                 MTU WAN is 1500
+    Run Keyword If                                 not ${mtu_wan}       Fail    MTU WAN is not 1500. Please check again!
+
+    ##Step 2.3: Verify Ping: â€œping ${TO_IPOE_GATEWAY} -I ${TEST_CONTROL_PC_LAN_NETWORK_INTERFACE} -c 10 -M do -s 1400â€� should success
+    Log To Console                                 \nStep 2.3: Verify ping ${TO_IPOE_GATEWAY} should success
+    ${lan_interface}=                              SSHL.Execute Command    ifconfig | grep -B1 "inet addr:192.168" | awk '$1!="inet" && $1!="--" {print $1}'
+    Wait Until Keyword Succeeds                    12x    5s    Ping Should Succeed_TC_20_01    ping_address=${TO_IPOE_GATEWAY}
+    ...                                            nic=${lan_interface}
+    ...                                            mtu_size=1400
+    # SSHL.Close Connection
+
+    ##STEP 3: Edit MTU WAN IPoE to 1992
+    Login To Browser                               remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                            url=${LOGIN_URL}
+    ...                                            username=${ONT_WEB_USER}
+    ...                                            password=${ONT_WEB_PASS}
+    ...                                            browser=${BROWSER}
+    Welcome Page Should Be Open
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+    Log To Console                                 \nStep 3.2: Edit MTU WAN IPoE from 1500 Bytes to 1992 Bytes
+    Edit Wan Service                               vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+
+    ####Expand WAN IPoE
+    SL.Wait Until Element Is Visible               xpath=//img[@id="showwannatip"]
+    ...                                            timeout=10s
+    ...                                            error=\nExpand WAN service settings Not Found
+    SL.Click Element                               xpath=//img[@id="showwannatip"]
+
+    # Change MTU WAN IPoE from 1500 to 1992
+    Log To Console                                 \nChange MTU WAN IPoE from 1500 to 1992\n
+    SL.Wait Until Element Is Visible               xpath=//input[@name="ethMtu"]
+    ...                                            timeout=10s
+    ...                                            error=\nMTU size Text Box Not Found
+    SL.Input Text                                  xpath=//input[@name="ethMtu"]                 1992
+
+    SL.Wait Until Element Is Visible               xpath=//input[@value="Apply/Save"]
+    ...                                            timeout=10s
+    ...                                            error=\nApply/Save Button Not Found
+    SL.Click Element                               xpath=//input[@value="Apply/Save"]
+    SL.Wait Until Page Contains                    Wide Area Network (WAN) Service Setup
+    ...                                            timeout=20s
+    ...                                            error=\nNetwork Settings WAN Configure Page Not Found
+
+    ##Step 3.3: Verify WAN IPoE should success on web
+    Log To Console                                 \nStep 3.3: Verify WAN IPoE should success on web
+    Wait Until Keyword Succeeds                    12x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+
+   ###STEP 2: Telnet to ONT, check MTU and Ping: â€œping ${TO_IPOE_GATEWAY} -I ${TEST_CONTROL_PC_LAN_NETWORK_INTERFACE} -c 10 -M do -s 1992â€� from PC
+
+    Log To Console                                 \nStep 2: Telnet to ONT, check MTU and Ping\n
+    # Open Connection And Login To Remote Machine    ssh_server_ip=${REMOTE_SERVER_IP}
+    # ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    # ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+    # ...                                            ssh_timeout=20s
+    Log To Console                                 \nStep 2.1: Telnet to ONT
+    SSHL.Write                                     telnet 192.168.1.1
+    Sleep                                          1
+    SSHL.Write                                     admin
+    ${check_output_telnet}=                        SSHL.Read    delay=1s
+    Log To Console                                 Telnet Output: ${check_output_telnet}
+    SSHL.Write                                     ttcn@77CN
+    Sleep                                          1
+    Log To Console                                 \nStep 2.2: Check MTU WAN IPoE\n
+    SSHL.Write                                     ifconfig veip0.4
+    ${check_output_wan}=                           SSHL.Read    delay=20s
+    Log To Console                                 ${check_output_wan}
+    ${mtu_wan}=                                    Run Keyword And Return Status     Should Contain     ${check_output_wan}    MTU:1992
+    Log To Console                                 MTU WAN is 1992
+    Run Keyword If                                 not ${mtu_wan}       Fail    MTU WAN is not 1992. Please check again!
+
+    ##Step 2.3: Verify Ping: â€œping ${TO_IPOE_GATEWAY} -I ${TEST_CONTROL_PC_LAN_NETWORK_INTERFACE} -c 10 -M do -s 1992â€� should success
+    Log To Console                                 \nStep 2.3: Verify ping ${TO_IPOE_GATEWAY} should success
+
+    # Ping
+    # Open Connection And Login To Remote Machine    ssh_server_ip=${REMOTE_SERVER_IP}
+    # ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    # ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+    Wait Until Keyword Succeeds                    12x    5s    Ping Should Succeed_TC_20_01    ping_address=${TO_IPOE_GATEWAY}
+    ...                                            nic=${lan_interface}
+    ...                                            mtu_size=1992
+
+    SL.Close All Browsers
+    SSHL.Close All Connections
+
+    [Teardown]    Run Keyword And Ignore Error     GW020BRC_FUNC_64_TC_01_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_64_TC_01
+    # GW020BRC_FUNC_64_TC_01

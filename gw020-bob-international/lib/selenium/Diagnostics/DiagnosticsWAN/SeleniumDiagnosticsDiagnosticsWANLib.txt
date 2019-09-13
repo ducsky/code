@@ -1,0 +1,63 @@
+*** Settings ***
+Library                          SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+
+*** Variables ***
+
+
+*** Keywords ***
+
+Get Cell Value Diagnostic Wan
+    [Arguments]                 ${first_row_name}
+    ${connection_status}=    SL.Get Text    xpath=//td[contains(text(), "${first_row_name}")]/parent::tr/td[2]
+    [Return]                    ${connection_status}
+
+
+Ping default gateway Should Be Pass
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsWANLib.Get Cell Value Diagnostic Wan   first_row_name=Ping default gateway
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'PASS '
+
+Ping DNS Should Be Pass
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsWANLib.Get Cell Value Diagnostic Wan   first_row_name=Ping primary Domain Name Server
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'PASS '
+
+Ping default gateway Should Be Fail
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsWANLib.Get Cell Value Diagnostic Wan   first_row_name=Ping default gateway
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'FAIL '
+
+Ping DNS Should Be Fail
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsWANLib.Get Cell Value Diagnostic Wan   first_row_name=Ping primary Domain Name Server
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'FAIL '
+
+Test PPP Server Connection Should Be Pass
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsWANLib.Get Cell Value Diagnostic Wan   first_row_name=Test PPP server connection
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'PASS '
+
+Test PPP Server Connection Should Be Fail
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsWANLib.Get Cell Value Diagnostic Wan   first_row_name=Test PPP server connection
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'FAIL '
+
+Test authentication with ISP Should Be Pass
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsWANLib.Get Cell Value Diagnostic Wan   first_row_name=Test authentication with ISP
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'PASS '
+
+Test authentication with ISP Should Be Fail
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsWANLib.Get Cell Value Diagnostic Wan   first_row_name=Test authentication with ISP
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'FAIL '
+
+Test the assigned IP address Should Be Pass
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsWANLib.Get Cell Value Diagnostic Wan   first_row_name=Test the assigned IP address
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'PASS'
+
+Test the assigned IP address Should Be Fail
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsWANLib.Get Cell Value Diagnostic Wan   first_row_name=Test the assigned IP address
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'FAIL'

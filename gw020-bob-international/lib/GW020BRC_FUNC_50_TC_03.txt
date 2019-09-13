@@ -1,0 +1,355 @@
+*** Settings ***
+Library                                      SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Resource                                     selenium/Login/SeleniumLoginLib.txt
+Resource                                     selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource                                     selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource                                     selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource                                     variables/AllVariables.txt
+Resource                                     selenium/Diagnostics/DiagnosticsWAN/SeleniumDiagnosticsDiagnosticsWANLib.txt
+Resource                                     selenium/Diagnostics/DiagnosticsTools/SeleniumDiagnosticsDiagnosticsToolsLib.txt
+
+*** Variables ***
+${LOGIN_BUTTON}                              xpath=//button[@class="loginBtn"]
+
+*** Keywords ***
+GW020BRC_FUNC_50_TC_03_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+
+GW020BRC_FUNC_50_TC_03
+    [Arguments]                             ${IP_DIAGNOSTIC}
+    ##Step 1: Create a new wan pppoe
+    SL.Set Selenium Speed                   0.7
+    Set Test Message                        *HTML* <b>GW020BRC_FUNC_50_TC_03</b>      
+    Log To Console                          \nStep 1: Login to Wan Configure Page with account Admin\n
+    Login To Browser                        remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                     url=${LOGIN_URL}
+    ...                                     username=${ONT_WEB_USER}
+    ...                                     password=${ONT_WEB_PASS}
+    ...                                     browser=${BROWSER}
+    Welcome Page Should Be Open
+    Open Network Settings Wan Page          url=${NETWORK_SETTINGS_WAN_URL}
+    Log To Console                          \nStep 1.1: Create a new WAN PPPoE\n
+    Create New Wan PPPoE                    url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                     network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                                     priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                                     vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    ...                                     ppp_username=${CORRECT_PPP_USERNAME}
+    ...                                     ppp_password=${CORRECT_PPP_PASSWORD}
+    ...                                     routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                     wan_interface=${PPPOE_WAN_INTERFACE}
+
+    ##Verify WAN should success on web
+    Log To Console                          \nStep 1.2: Verify WAN should success on web\n
+    Wait Until Keyword Succeeds             5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+    #Step 2: Check Diagnostics Tools
+    ##Go To Diagnostic Tools Page
+    Log To Console                           \nStep 2: Check Diagnostics Tool when PPPoE WAN is Connected\n
+    Go To Diagnostic Tools Page
+
+    ####Select Ping tool
+    Select Ping tool
+
+    #######Check Ping to 192.168.1.1
+    Log To Console                            \nPing to 192.168.1.1
+    ###Input IP
+    Input Diagnostic Ip Address               ip_diagnostic=192.168.1.1
+
+    ###Click Run Button
+    SL.Wait Until Element Is Visible          xpath=//input[@value="Run"]
+    ...                                       timeout=30s
+    ...                                       error=\nRun button can not found\n
+    SL.Click Element                          xpath=//input[@value="Run"]
+    Sleep                                     15s
+
+    ###Show Result
+    SL.Wait Until Element Is Visible          xpath=//textarea[@name="outputtext"]
+    ...                                       timeout=30s
+    ...                                       error=\nTextarea can not found\n
+    ${ping_result}=                           SL.Get Value           xpath=//textarea[@name="outputtext"]
+    Log To Console                            ${ping_result}
+    Should Contain    ${ping_result}          0 percent packet loss
+    Log To Console                            \nPing to 192.168.1.1 successfull!
+
+
+    #######Check Ping to 8.8.8.8
+    Log To Console                            \nPing to ${IP_DIAGNOSTIC}
+    ###Input IP
+    Input Diagnostic Ip Address               ip_diagnostic=${IP_DIAGNOSTIC}
+
+    ###Click Run Button
+    SL.Wait Until Element Is Visible          xpath=//input[@value="Run"]
+    ...                                       timeout=30s
+    ...                                       error=\nRun button can not found\n
+    SL.Click Element                          xpath=//input[@value="Run"]
+    Sleep                                     15s
+
+    ###Show Result
+    SL.Wait Until Element Is Visible          xpath=//textarea[@name="outputtext"]
+    ...                                       timeout=30s
+    ...                                       error=\nTextarea can not found\n
+    ${ping_result}=                           SL.Get Value            xpath=//textarea[@name="outputtext"]
+    Log To Console                            ${ping_result}
+    Should Contain    ${ping_result}          0 percent packet loss
+    Log To Console                            \nPing to ${IP_DIAGNOSTIC} successfull!
+
+
+    #######Check Trace to 8.8.8.8
+    Log To Console                            \nTrace to ${IP_DIAGNOSTIC}
+
+    ####Select Trace tool
+    Select Trace tool
+
+    ###Input IP
+    Input Diagnostic Ip Address               ip_diagnostic=${IP_DIAGNOSTIC}
+
+    ###Click Run Button
+    SL.Wait Until Element Is Visible          xpath=//input[@value="Run"]
+    ...                                       timeout=30s
+    ...                                       error=\nRun button can not found\n
+    SL.Click Element                          xpath=//input[@value="Run"]
+    Sleep                                      15s
+
+
+    ###Show Result
+    SL.Wait Until Element Is Visible          xpath=//textarea[@name="outputtext"]
+    ...                                       timeout=30s
+    ...                                       error=\nTextarea can not found\n
+    ${trace_result}=                           SL.Get Value           xpath=//textarea[@name="outputtext"]
+    Log To Console                            ${trace_result}
+    Should Contain    ${trace_result}          byte packets
+    Log To Console                            \nTrace to ${IP_DIAGNOSTIC} successfull!
+    # SL.Close All Browsers
+
+    #####Step 3: Disconnect PPPoE WAN
+    # Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    # ...                                      url=${LOGIN_URL}
+    # ...                                      username=${ONT_WEB_USER}
+    # ...                                      password=${ONT_WEB_PASS}
+    # ...                                      browser=${BROWSER}
+    # Welcome Page Should Be Open
+    ####Go To WAN InFo Page
+    SL.Go To                                 url=http://192.168.1.1/wancfg.cmd?action=view
+    SL.Wait Until Page Contains              WAN Info
+    ...                                      timeout=20s
+    ...                                      error=\nWAN Info Page Not Found
+    SL.Page Should Contain                   WAN Info
+
+    ######Click Disconnect Button
+    Log To Console                           \n\nStep 3.1: Click Disconnect Button\n
+    Disconnect WAN                           vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    Log To Console                           \nCheck WAN PPPoE Status
+    Wait Until Keyword Succeeds              5x    1s    Wan Connection Should Be Failed    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+####Check Diagnostics Tools
+    Log To Console                           \nStep 3.2: Check Diagnostics Tools when PPPoE WAN is Disconnected\n
+    # Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    # ...                                      url=${LOGIN_URL}
+    # ...                                      username=${ONT_WEB_USER}
+    # ...                                      password=${ONT_WEB_PASS}
+    # ...                                      browser=${BROWSER}
+    # Welcome Page Should Be Open
+    Go To Diagnostic Tools Page
+
+    ####Select Ping tool
+    Select Ping tool
+
+    #######Check Ping to 192.168.1.1
+    Log To Console                            \nPing to 192.168.1.1
+    ###Input IP
+    Input Diagnostic Ip Address               ip_diagnostic=192.168.1.1
+
+    ###Click Run Button
+    SL.Wait Until Element Is Visible          xpath=//input[@value="Run"]
+    ...                                       timeout=30s
+    ...                                       error=\nRun button can not found\n
+    SL.Click Element                          xpath=//input[@value="Run"]
+    Sleep                                     15s
+
+    ###Show Result
+    SL.Wait Until Element Is Visible          xpath=//textarea[@name="outputtext"]
+    ...                                       timeout=30s
+    ...                                       error=\nTextarea can not found\n
+    ${ping_result}=                           SL.Get Value           xpath=//textarea[@name="outputtext"]
+    Log To Console                            ${ping_result}
+    Should Contain    ${ping_result}          0 percent packet loss
+    Log To Console                            \nPing to 192.168.1.1 successfull!
+
+
+    #######Check Ping to 8.8.8.8
+    Log To Console                            \nPing to ${IP_DIAGNOSTIC}
+
+    ###Input IP
+    Input Diagnostic Ip Address               ip_diagnostic=${IP_DIAGNOSTIC}
+
+    ###Click Run Button
+    SL.Wait Until Element Is Visible          xpath=//input[@value="Run"]
+    ...                                       timeout=30s
+    ...                                       error=\nRun button can not found\n
+    SL.Click Element                          xpath=//input[@value="Run"]
+    Sleep                                     15s
+
+    ###Show Result
+    SL.Wait Until Element Is Visible          xpath=//textarea[@name="outputtext"]
+    ...                                       timeout=30s
+    ...                                       error=\nTextarea can not found\n
+    ${ping_result}=                           SL.Get Value           xpath=//textarea[@name="outputtext"]
+    Log To Console                            ${ping_result}
+    Should Contain    ${ping_result}          check your network or address
+    Log To Console                            \nCan not Ping to ${IP_DIAGNOSTIC}
+
+    #######Check Trace to 8.8.8.8
+    Log To Console                            \nTrace to ${IP_DIAGNOSTIC}
+    ####Select Trace tool
+    Select Trace tool
+
+    ###Input IP
+    Input Diagnostic Ip Address               ip_diagnostic=${IP_DIAGNOSTIC}
+
+    ###Click Run Button
+    SL.Wait Until Element Is Visible          xpath=//input[@value="Run"]
+    ...                                       timeout=30s
+    ...                                       error=\nRun button can not found\n
+    SL.Click Element                          xpath=//input[@value="Run"]
+    Sleep                                     15s
+
+    ###Show Result
+    SL.Wait Until Element Is Visible          xpath=//textarea[@name="outputtext"]
+    ...                                       timeout=30s
+    ...                                       error=\nTextarea can not found\n
+    ${trace_result}=                           SL.Get Value           xpath=//textarea[@name="outputtext"]
+    Log To Console                            ${trace_result}
+    Should Contain    ${trace_result}          check your network or address
+    Log To Console                            \nCan not Trace to ${IP_DIAGNOSTIC}!
+    # SL.Close All Browsers
+
+
+    ########Step 4: Reconnect WAN PPPoE
+    Log To Console                                 \n\nStep 4: Reconnect WAN PPPoE\n
+    # Login To Browser                               remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    # ...                                            url=${LOGIN_URL}
+    # ...                                            username=${ONT_WEB_USER}
+    # ...                                            password=${ONT_WEB_PASS}
+    # ...                                            browser=${BROWSER}
+    # Welcome Page Should Be Open
+    ####Go To WAN InFo Page
+    SL.Go To                                       url=http://192.168.1.1/wancfg.cmd?action=view
+    SL.Wait Until Page Contains                    WAN Info
+    ...                                            timeout=20s
+    ...                                            error=\nWAN Info Page Not Found
+    SL.Page Should Contain                         WAN Info
+    ######Click Reconnect Button
+    Log To Console                                 \n\nStep4.1: Click Reconnect Button\n
+    Connect WAN                                   vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    Log To Console                                \nCheck WAN PPPoE Status
+    Wait Until Keyword Succeeds                    5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+    # SL.Close Browser
+
+    ####Step 4.2: Check Diagnostics Tool
+    # Login To Browser                               remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    # ...                                            url=${LOGIN_URL}
+    # ...                                            username=${ONT_WEB_USER}
+    # ...                                            password=${ONT_WEB_PASS}
+    # ...                                            browser=${BROWSER}
+    # Welcome Page Should Be Open
+
+    ####Go To Diagnostic Tools Page
+    Log To Console                                \nStep 4.2: Check Diagnostics WAN when PPPoE WAN is Connected\n
+    Go To Diagnostic Tools Page
+
+    ####Select Ping tool
+    Select Ping tool
+
+    #######Check Ping to 192.168.1.1
+    Log To Console                            \nPing to 192.168.1.1
+    ###Input IP
+    Input Diagnostic Ip Address                    ip_diagnostic=192.168.1.1
+
+    ###Click Run Button
+    SL.Wait Until Element Is Visible               xpath=//input[@value="Run"]
+    ...                                            timeout=30s
+    ...                                            error=\nRun button can not found\n
+    SL.Click Element                               xpath=//input[@value="Run"]
+    Sleep                                          15s
+
+    ###Show Result
+    SL.Wait Until Element Is Visible          xpath=//textarea[@name="outputtext"]
+    ...                                       timeout=30s
+    ...                                       error=\nTextarea can not found\n
+    ${ping_result}=                           SL.Get Value           xpath=//textarea[@name="outputtext"]
+    Log To Console                            ${ping_result}
+    Should Contain    ${ping_result}          0 percent packet loss
+    Log To Console                            \nPing to 192.168.1.1 successfull!
+
+    #######Check Ping to 8.8.8.8
+    Log To Console                            \nPing to ${IP_DIAGNOSTIC}
+    ###Input IP
+    Input Diagnostic Ip Address               ip_diagnostic=${IP_DIAGNOSTIC}
+
+    ###Click Run Button
+    SL.Wait Until Element Is Visible          xpath=//input[@value="Run"]
+    ...                                       timeout=30s
+    ...                                       error=\nRun button can not found\n
+    SL.Click Element                          xpath=//input[@value="Run"]
+    Sleep                                     15s
+
+    ###Show Result
+    SL.Wait Until Element Is Visible          xpath=//textarea[@name="outputtext"]
+    ...                                       timeout=30s
+    ...                                       error=\nTextarea can not found\n
+    ${ping_result}=                           SL.Get Value           xpath=//textarea[@name="outputtext"]
+    Log To Console                            ${ping_result}
+    Should Contain    ${ping_result}          0 percent packet loss
+    Log To Console                            \nPing to ${IP_DIAGNOSTIC} successfull!
+
+    #######Check Trace to 8.8.8.8
+    Log To Console                            \nTrace to ${IP_DIAGNOSTIC}
+    ####Select Trace tool
+    Select Trace tool
+
+    ###Input IP
+    Input Diagnostic Ip Address               ip_diagnostic=${IP_DIAGNOSTIC}
+
+    ###Click Run Button
+    SL.Wait Until Element Is Visible          xpath=//input[@value="Run"]
+    ...                                       timeout=30s
+    ...                                       error=\nRun button can not found\n
+    SL.Click Element                          xpath=//input[@value="Run"]
+    Sleep                                     15s
+
+
+    ###Show Result
+    SL.Wait Until Element Is Visible          xpath=//textarea[@name="outputtext"]
+    ...                                       timeout=30s
+    ...                                       error=\nTextarea can not found\n
+    ${trace_result}=                           SL.Get Value           xpath=//textarea[@name="outputtext"]
+    Log To Console                            ${trace_result}
+    Should Contain    ${trace_result}          byte packets
+    Log To Console                            \nTrace to ${IP_DIAGNOSTIC} successfull!
+
+    [Teardown]    Run Keyword And Ignore Error    GW020BRC_FUNC_50_TC_03_Teardown
+
+# *** Test cases ***
+# GW020_FUNC_50_TC_03
+    # Log To Console                          Check Function Diagnostics Tools
+    # GW020BRC_FUNC_50_TC_03    ${IP_DIAGNOSTIC}

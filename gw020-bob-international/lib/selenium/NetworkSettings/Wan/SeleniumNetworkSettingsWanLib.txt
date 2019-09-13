@@ -1,0 +1,770 @@
+*** Settings ***
+Library                                        SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+
+*** Variables ***
+
+*** Keywords ***
+
+Open Network Settings Wan Page
+
+    [Arguments]                                ${url}=http://192.168.1.1/wancfg.cmd
+
+    SL.Go To                                   ${url}
+    SL.Wait Until Page Contains                Wide Area Network (WAN) Service Setup
+    ...                                        timeout=20s
+    ...                                        error=\nNetwork Settings WAN Configure Page Not Found
+    SL.Page Should Contain                     Wide Area Network (WAN) Service Setup
+
+
+Remove Wan Service
+    [Documentation]                            Remove WAN service base on VLAN ID.
+    ...                                        If VLAN ID is found, remove WAN service, else do nothing.
+
+    [Arguments]                                ${vlan_id}
+
+# Check WAN service whether it existed
+    ${row_index}=               SeleniumNetworkSettingsWanLib.Get Row Index    column_name=VlanMuxId    column_value=${vlan_id}
+
+    ${remove_column_index}=     SeleniumNetworkSettingsWanLib.Get Column Index    column_name=Remove
+    Run Keyword If     '${row_index}' != 'None'     SL.Click Element      xpath=//table[@class="wholetable"]/tbody/tr[${row_index}]/td[${remove_column_index}]/input
+
+
+Add New Wan Service
+    [Documentation]                            Adding new WAN service by click Add button, then redirect to ETH WAN Configuration
+
+    [Arguments]                                ${wan_service_type}
+    SL.Wait Until Element Is Visible           xpath=//input[@value="Add"]
+    ...                                        timeout=20s
+    ...                                        error=\nAdd Button Not Found
+    SL.Click Element                           xpath=//input[@value="Add"]
+
+    # Redirect to ETH WAN Configuration
+    SL.Wait Until Page Contains                ETH WAN Configuration
+    ...                                        timeout=20s
+    ...                                        error=\nETH WAN Configuration Page Not Found
+
+    Run Keyword If                            '${wan_service_type}' == 'PPPoE'        Log To Console     Select PPPoE Wan Service
+    ...    ELSE IF                            '${wan_service_type}' == 'IPoE'         Log To Console     Select IPoE Wan Service
+    ...    ELSE IF                            '${wan_service_type}' == 'Bridging'     Log To Console     Select Bridging Wan Service
+
+
+Edit Wan Service
+    [Documentation]             Edit an existed WAN service base on VLAN ID.
+    ...                         If VLAN ID is found, edit WAN service, else log WAN service not found.
+
+    [Arguments]                 ${vlan_id}
+
+    # Check WAN service whether it existed
+    ${row_index}=               SeleniumNetworkSettingsWanLib.Get Row Index    column_name=VlanMuxId    column_value=${vlan_id}
+    ${edit_column_index}=       SeleniumNetworkSettingsWanLib.Get Column Index    column_name=Edit
+    Run Keyword If     '${row_index}' != 'None'     SL.Click Element      xpath=//table[@class="wholetable"]/tbody/tr[${row_index}]/td[${edit_column_index}]/input
+    ...       ELSE     Log To Console     WAN service with VLAN ID "${vlan_id}" not found
+
+Verify Status Nat And Firewall With Account Admin
+    [Documentation]                  Verify Status Enable or Disable Nat And Firewall With Account Admin
+
+    SL.Wait Until Page Contains      ETH WAN Configuration    timeout=10    error=\n\Page edit eth did not show up\n
+    Log To Console                   Check Firewall Enabled
+    SL.Page Should Contain Element   xpath=//input[@name="enblFirewallppp"]
+    Checkbox Should Be Selected      xpath=//input[@name="enblFirewallppp"]
+    Log To Console                   Check Nat Enabled
+    SL.Page Should Contain Element   xpath=//input[@name="enblNatppp"]
+    SL.Checkbox Should Be Selected   xpath=//input[@name="enblNatppp"]
+    Log To Console                   Check Firewall Can Not Be Active
+    SL.Element Should Be Disabled    xpath=//input[@name="enblFirewallppp"]
+    Log To Console                   Check Nat Can Be Active
+    SL.Element Should Be Enabled     xpath=//input[@name="enblNatppp"]
+
+
+Select PPPoE Wan Service
+    [Documentation]               Select and configure PPPoE WAN Service
+    ...                           Input:
+    ...                           1. network_protocol: IPv4/IPv4&IPv6/IPv6
+    ...                           2. priority: [0-7]
+    ...                           3. vlan_id: [0-4094]
+    ...                           4. ppp_username: Default value is empty
+    ...                           5. ppp_password: Default value is empty
+    ...                           6. routing_default_gw: Default value is "Current Interface"
+    ...                           7. wan_interface: Default value is "Current Interface"
+    ...                           8. ppp_mtu_size: Default value is 1492
+    ...                           9. configure_advanced_wan_pppoe: Set equal True if user want to expand WAN service settings. Default is False
+    ...                           10. routing_default_gw_ipv6: Default value is "Current Interface"
+    ...                           11. wan_interface_ipv6: Default value is "Current Interface"
+
+    [Arguments]                   ${network_protocol}
+    ...                           ${priority}
+    ...                           ${vlan_id}
+    ...                           ${ppp_username}
+    ...                           ${ppp_password}
+    ...                           ${routing_default_gw}=Current Interface
+    ...                           ${wan_interface}=Current Interface
+    ...                           ${ppp_mtu_size}=1492
+    ...                           ${configure_advanced_wan_pppoe}=False
+    ...                           ${routing_default_gw_ipv6}=Current Interface
+    ...                           ${wan_interface_ipv6}=Current Interface
+
+    SL.Wait Until Element Is Visible    xpath=//input[@id="ntwkPrtcl1"]
+    ...                                 timeout=10s
+    ...                                 error=\nPPPoE Select Box Not Found
+    SL.Click Element                    xpath=//input[@id="ntwkPrtcl1"]
+
+    # Select network procotol
+    SL.Wait Until Element Is Visible    xpath=//select[@id="IpProtocalMode"]
+    ...                                 timeout=10s
+    ...                                 error=\Network Procotol Selection Not Found
+    Run Keyword If    '${network_protocol}' == 'IPv4'         SL.Select From List By Index        xpath=//select[@id="IpProtocalMode"]     0
+    ...    ELSE IF    '${network_protocol}' == 'IPv4&IPv6'    SL.Select From List By Index        xpath=//select[@id="IpProtocalMode"]     1
+    ...    ELSE IF    '${network_protocol}' == 'IPv6'         SL.Select From List By Index        xpath=//select[@id="IpProtocalMode"]     2
+
+    # Input 802.1P Priority
+    SL.Wait Until Element Is Visible    xpath=//input[@name="vlanMuxPr"]
+    ...                                 timeout=10s
+    ...                                 error=\nPriority Text Box Not Found
+    SL.Input Text                       xpath=//input[@name="vlanMuxPr"]    ${priority}
+
+    #Input 802.1Q VLAN ID
+    SL.Wait Until Element Is Visible    xpath=//input[@name="vlanMuxId"]
+    ...                                 timeout=10s
+    ...                                 error=\nVLAN ID Text Box Not Found
+    SL.Input Text                       xpath=//input[@name="vlanMuxId"]    ${vlan_id}
+
+    #Input PPP Username
+    SL.Wait Until Element Is Visible    xpath=//input[@name="pppUserName"]
+    ...                                 timeout=10s
+    ...                                 error=\nPPP Username Text Box Not Found
+    SL.Input Text                       xpath=//input[@name="pppUserName"]    ${ppp_username}
+
+    #Input PPP Password
+    SL.Wait Until Element Is Visible    xpath=//input[@name="pppPassword"]
+    ...                                 timeout=10s
+    ...                                 error=\nPPP Password Text Box Not Found
+    SL.Input Text                       xpath=//input[@name="pppPassword"]    ${ppp_password}
+
+    #Input MTU size
+    SL.Wait Until Element Is Visible    xpath=//input[@name="pppMtuSize"]
+    ...                                 timeout=10s
+    ...                                 error=\MTU Size Text Box Not Found
+    SL.Input Text                       xpath=//input[@name="pppMtuSize"]    ${ppp_mtu_size}
+
+    # Select routing default gateway
+    Run Keyword If    '${network_protocol}' == 'IPv4'         Select Routing IPv4 Only    ${routing_default_gw}
+    ...    ELSE IF    '${network_protocol}' == 'IPv4&IPv6'    Select Routing IPv4&IPv6    ${routing_default_gw}    ${routing_default_gw_ipv6}
+    ...    ELSE IF    '${network_protocol}' == 'IPv6'         Select Routing IPv6 Only    ${routing_default_gw_ipv6}
+
+    # Select DNS Server interface from available WAN interface
+    Run Keyword If    '${network_protocol}' == 'IPv4'         Select DNS Server IPv4 Only    ${wan_interface}
+    ...    ELSE IF    '${network_protocol}' == 'IPv4&IPv6'    Select DNS Server IPv4&IPv6    ${wan_interface}    ${wan_interface_ipv6}
+    ...    ELSE IF    '${network_protocol}' == 'IPv6'         Select DNS Server IPv6 Only    ${wan_interface_ipv6}
+
+    # Configure Advanced Wan PPPoE
+    Run Keyword If    '${configure_advanced_wan_pppoe}' == 'True'    SL.Click Element    xpath=//img[@id="showpppAdv"]
+
+Apply Wan Settings
+    # Apply/Save
+    SL.Wait Until Element Is Visible    xpath=//input[@value="Apply/Save"]
+    ...                                 timeout=10s
+    ...                                 error=\nApply/Save Button Not Found
+    SL.Click Element                    xpath=//input[@value="Apply/Save"]
+
+Select Routing IPv4 Only
+    [Arguments]                         ${routing_default_gw}=Current Interface
+    # Select routing default gateway
+    SL.Wait Until Element Is Visible    xpath=//select[@name="selGtwyIfcs"]
+    ...                                 timeout=10s
+    ...                                 error=\nDefault IPv4 Gateway Select Box Not Found
+    Run Keyword If    '${routing_default_gw}' == 'Current Interface'       SL.Select From List By Value    xpath=//select[@name="selGtwyIfcs"]    curInf4
+    ...    ELSE    SL.Select From List By Value        xpath=//select[@name="selGtwyIfcs"]    ${routing_default_gw}
+
+Select Routing IPv6 Only
+    [Arguments]                         ${routing_default_gw_ipv6}=Current Interface
+    # Select routing default gateway
+    SL.Wait Until Element Is Visible    xpath=//select[@name="wanIf6gw"]
+    ...                                 timeout=10s
+    ...                                 error=\nDefault IPv6 Gateway Select Box Not Found
+    Run Keyword If    '${routing_default_gw_ipv6}' == 'Current Interface'       SL.Select From List By Value    xpath=//select[@name="wanIf6gw"]    curInf6
+    ...    ELSE    SL.Select From List By Value        xpath=//select[@name="wanIf6gw"]    ${routing_default_gw_ipv6}
+
+Select Routing IPv4&IPv6
+    [Arguments]                         ${routing_default_gw}=Current Interface
+    ...                                 ${routing_default_gw_ipv6}=Current Interface
+    Select Routing IPv4 Only            ${routing_default_gw}
+    Select Routing IPv6 Only            ${routing_default_gw_ipv6}
+
+Select DNS Server IPv4 Only
+    [Arguments]                         ${wan_interface}=Current Interface
+    # Select DNS Server interface from available WAN interface
+    SL.Wait Until Element Is Visible    xpath=//input[@name="dns"]
+    ...                                 timeout=10s
+    ...                                 error=\nSelect DNS Server Interface Not Found
+    SL.Click Element                    xpath=//input[@name="dns"]
+    SL.Wait Until Element Is Visible    xpath=//select[@name="selDnsIfcs"]
+    ...                                 timeout=10s
+    ...                                 error=\nWAN Interface Select Box Not Found
+    Run Keyword If    '${wan_interface}' == 'Current Interface'           SL.Select From List By Value    xpath=//select[@name="selDnsIfcs"]    curInf4
+    ...    ELSE    SL.Select From List By Value        xpath=//select[@name="selDnsIfcs"]    ${wan_interface}
+
+Select DNS Server IPv6 Only
+    [Arguments]                         ${wan_interface_ipv6}=Current Interface
+    # Select DNS Server interface from available WAN interface
+    SL.Wait Until Element Is Visible    xpath=//input[@name="dns6"]
+    ...                                 timeout=10s
+    ...                                 error=\nSelect DNS Server Interface Not Found
+    SL.Click Element                    xpath=//input[@name="dns6"]
+    SL.Wait Until Element Is Visible    xpath=//select[@name="wanIf6"]
+    ...                                 timeout=10s
+    ...                                 error=\nWAN Interface Select Box Not Found
+    Run Keyword If    '${wan_interface_ipv6}' == 'Current Interface'           SL.Select From List By Value    xpath=//select[@name="wanIf6"]    curInf6
+    ...    ELSE    SL.Select From List By Value        xpath=//select[@name="wanIf6"]    ${wan_interface_ipv6}
+
+Select DNS Server IPv4&IPv6
+    [Arguments]                         ${wan_interface}=Current Interface
+    ...                                 ${wan_interface_ipv6}=Current Interface
+    Select DNS Server IPv4 Only         ${wan_interface}
+    Select DNS Server IPv6 Only         ${wan_interface_ipv6}
+
+Select IPoE Wan Service
+    [Documentation]                     Select and configure IPoE WAN Service
+    ...                                 Input:
+    ...                                 1. network_protocol: IPv4/IPv4&IPv6/IPv6
+    ...                                 2. priority: [0-7]
+    ...                                 3. ppoe_vlan_id: [0-4094]
+    ...                                 4. configure_wan_service_settings: Set equal True if user want to expand WAN service settings. Default is False
+    ...                                 5. configure_static_ip: Set equal True if configure IPoE WAN service settings to use static IP address. Default is False
+    ...                                 6. wan_ip_address
+    ...                                 7. wan_subnet_mask
+    ...                                 8. wan_gateway
+    ...                                 9. ppp_routing_default_gw: Default value is "Current Interface"
+    ...                                 10. ppp_wan_interface: Default value is "Current Interface"
+    ...                                 11. mtu_size: Default is 1500
+    ...                                 12. routing_default_gw_ipv6: Default value is "Current Interface"
+    ...                                 13. wan_interface_ipv6: Default value is "Current Interface"
+
+    [Arguments]                         ${network_protocol}
+    ...                                 ${priority}
+    ...                                 ${vlan_id}
+    ...                                 ${configure_wan_service_settings}=False
+    ...                                 ${configure_static_ip}=False
+    ...                                 ${wan_ip_address}=0.0.0.0
+    ...                                 ${wan_subnet_mask}=0.0.0.0
+    ...                                 ${wan_gateway}=0.0.0.0
+    ...                                 ${routing_default_gw}=Current Interface
+    ...                                 ${wan_interface}=Current Interface
+    ...                                 ${mtu_size}=1500
+    ...                                 ${routing_default_gw_ipv6}=Current Interface
+    ...                                 ${wan_interface_ipv6}=Current Interface
+
+    SL.Wait Until Element Is Visible    xpath=//input[@id="ntwkPrtcl2"]
+    ...                                 timeout=10s
+    ...                                 error=\nIPoE Select Box Not Found
+    SL.Click Element                    xpath=//input[@id="ntwkPrtcl2"]
+
+    # Select network procotol
+    SL.Wait Until Element Is Visible    xpath=//select[@id="IpProtocalMode"]
+    ...                                 timeout=10s
+    ...                                 error=\Network Procotol Selection Not Found
+    Run Keyword If    '${network_protocol}' == 'IPv4'         SL.Select From List By Index        xpath=//select[@id="IpProtocalMode"]     0
+    ...    ELSE IF    '${network_protocol}' == 'IPv4&IPv6'    SL.Select From List By Index        xpath=//select[@id="IpProtocalMode"]     1
+    ...    ELSE IF    '${network_protocol}' == 'IPv6'         SL.Select From List By Index        xpath=//select[@id="IpProtocalMode"]     2
+
+    # Input 802.1P Priority
+    SL.Wait Until Element Is Visible    xpath=//input[@name="vlanMuxPr"]
+    ...                                 timeout=10s
+    ...                                 error=\nPriority Text Box Not Found
+    SL.Input Text                       xpath=//input[@name="vlanMuxPr"]    ${priority}
+
+    #Input 802.1Q VLAN ID
+    SL.Wait Until Element Is Visible    xpath=//input[@name="vlanMuxId"]
+    ...                                 timeout=10s
+    ...                                 error=\nVLAN ID Text Box Not Found
+    SL.Input Text                       xpath=//input[@name="vlanMuxId"]    ${vlan_id}
+
+    # Select routing default gateway
+    Run Keyword If    '${network_protocol}' == 'IPv4'         Select Routing IPv4 Only    ${routing_default_gw}
+    ...    ELSE IF    '${network_protocol}' == 'IPv4&IPv6'    Select Routing IPv4&IPv6    ${routing_default_gw}    ${routing_default_gw_ipv6}
+    ...    ELSE IF    '${network_protocol}' == 'IPv6'         Select Routing IPv6 Only    ${routing_default_gw_ipv6}
+
+    # Select DNS Server interface from available WAN interface
+    Run Keyword If    '${network_protocol}' == 'IPv4'         Select DNS Server IPv4 Only    ${wan_interface}
+    ...    ELSE IF    '${network_protocol}' == 'IPv4&IPv6'    Select DNS Server IPv4&IPv6    ${wan_interface}    ${wan_interface_ipv6}
+    ...    ELSE IF    '${network_protocol}' == 'IPv6'         Select DNS Server IPv6 Only    ${wan_interface_ipv6}
+
+    # Configure Advanced Wan IPoE
+    Run Keyword If    '${configure_wan_service_settings}' == 'True'    Expand IPoE Wan Service Settings    configure_static_ip=${configure_static_ip}    mtu_size=${mtu_size}    wan_ip_address=${wan_ip_address}    wan_subnet_mask=${wan_subnet_mask}    wan_gateway=${wan_gateway}
+
+Edit PPPoE Wan Service
+    [Documentation]               Edit existed PPPoE WAN Service
+    ...                           Input:
+    ...                           1. network_protocol: IPv4/IPv4&IPv6/IPv6
+    ...                           2. priority: [0-7]
+    ...                           3. vlan_id: [0-4094]
+    ...                           4. ppp_username: Default value is empty
+    ...                           5. ppp_password: Default value is empty
+    ...                           6. ppp_mtu_size: Default value is 1492
+    ...                           7. configure_advanced_wan_pppoe: Set equal True if user want to expand advanced PPPoE WAN service
+    ...                           8. ppp_enable_nat: Default is True
+
+    [Arguments]                   ${network_protocol}=IPv4&IPv6
+    ...                           ${priority}=0
+    ...                           ${vlan_id}=0
+    ...                           ${ppp_username}=ttcngpon
+    ...                           ${ppp_password}=ttcngpon
+    ...                           ${ppp_mtu_size}=1492
+    ...                           ${configure_advanced_wan_pppoe}=False
+    ...                           ${ppp_enable_nat}=True
+
+    # Select network procotol
+    SL.Wait Until Element Is Visible    xpath=//select[@id="IpProtocalMode"]     timeout=10s    error=\Network Procotol Selection Not Found
+    Run Keyword If    '${network_protocol}' == 'IPv4'         SL.Select From List By Index        xpath=//select[@id="IpProtocalMode"]     0
+    ...    ELSE IF    '${network_protocol}' == 'IPv4&IPv6'    SL.Select From List By Index        xpath=//select[@id="IpProtocalMode"]     1
+    ...    ELSE IF    '${network_protocol}' == 'IPv6'         SL.Select From List By Index        xpath=//select[@id="IpProtocalMode"]     2
+     # Input 802.1P Priority
+    SL.Wait Until Element Is Visible    xpath=//input[@name="vlanMuxPr"]    timeout=10s    error=\nPriority Text Box Not Found
+    SL.Input Text                       xpath=//input[@name="vlanMuxPr"]    ${priority}
+
+    #Input 802.1Q VLAN ID
+    SL.Wait Until Element Is Visible    xpath=//input[@name="vlanMuxId"]    timeout=10s    error=\nVLAN ID Text Box Not Found
+    SL.Input Text                       xpath=//input[@name="vlanMuxId"]    ${vlan_id}
+
+    #Input PPP Username
+    SL.Wait Until Element Is Visible    xpath=//input[@name="pppUserName"]    timeout=10s    error=\nPPP Username Text Box Not Found
+    SL.Input Text                       xpath=//input[@name="pppUserName"]    ${ppp_username}
+
+    #Input PPP Password
+    SL.Wait Until Element Is Visible    xpath=//input[@name="pppPassword"]    timeout=10s    error=\nPPP Password Text Box Not Found
+    SL.Input Text                       xpath=//input[@name="pppPassword"]    ${ppp_password}
+
+    #Input MTU size
+    SL.Wait Until Element Is Visible    xpath=//input[@name="pppMtuSize"]    timeout=10s    error=\MTU Size Text Box Not Found
+    SL.Input Text                       xpath=//input[@name="pppMtuSize"]    ${ppp_mtu_size}
+
+    # Expand advanced PPPoE WAN service settings
+    Run Keyword If    '${configure_advanced_wan_pppoe}' == 'True'    Expand PPPoE Wan Service Settings    ppp_enable_nat=${ppp_enable_nat}
+
+    SL.Wait Until Element Is Visible    xpath=//input[@value="Apply/Save"]    timeout=10s    error=\nApply/Save Button Not Found
+    SL.Click Element                    xpath=//input[@value="Apply/Save"]
+
+
+Expand PPPoE Wan Service Settings
+    [Documentation]                     Expand advanced PPPoE WAN service settings
+    ...                                 Input:
+    ...                                 1. ppp_enable_firewall: Default is True
+    ...                                 2. ppp_enable_nat: Default is True
+
+    [Arguments]                         ${ppp_enable_firewall}=True           ${ppp_enable_nat}=True
+
+    SL.Wait Until Element Is Visible    xpath=//img[@id="showpppAdv"]
+    ...                                 timeout=10s
+    ...                                 error=\nExpand advanced PPPoE WAN service settings Not Found
+    SL.Click Element                    xpath=//img[@id="showpppAdv"]
+
+    # Enable/Disable Firewall
+    SL.Wait Until Element Is Visible    xpath=//input[@name="enblFirewallppp"]
+    ...                                 timeout=10s
+    ...                                 error=\nEnable Firewall Checkbox Not Found
+    Run Keyword If    '${ppp_enable_firewall}' == 'True'    SL.Select Checkbox      xpath=//input[@name="enblFirewallppp"]
+    ...   ELSE IF     '${ppp_enable_firewall}' == 'False'   SL.Unselect Checkbox    xpath=//input[@name="enblFirewallppp"]
+
+    # Enable/Disable NAT
+    SL.Wait Until Element Is Visible    xpath=//input[@name="enblNatppp"]
+    ...                                 timeout=10s
+    ...                                 error=\nEnable NAT Checkbox Not Found
+    Run Keyword If    '${ppp_enable_nat}' == 'True'    SL.Select Checkbox    xpath=//input[@name="enblNatppp"]
+    ...   ELSE IF     '${ppp_enable_nat}' == 'False'   SL.Unselect Checkbox    xpath=//input[@name="enblNatppp"]
+
+
+Expand IPoE Wan Service Settings
+    [Documentation]                     Expand advanced IPoE WAN service settings in IPoE configure mode.
+    ...                                 Set static_ip=True to configure static IP address
+    ...                                 Input:
+    ...                                 1. configure_static_ip: Default is False
+    ...                                 2. mtu_size: Default is 1500
+    ...                                 2. wan_ip_address: Default is 0.0.0.0
+    ...                                 3. wan_subnet_mask: Default is 0.0.0.0
+    ...                                 4. wan_gateway: Default is 0.0.0.0
+
+    [Arguments]                         ${configure_static_ip}    ${mtu_size}    ${wan_ip_address}    ${wan_subnet_mask}    ${wan_gateway}
+
+    SL.Wait Until Element Is Visible    xpath=//img[@id="showwannatip"]
+    ...                                 timeout=10s
+    ...                                 error=\nExpand WAN service settings Not Found
+    SL.Click Element                    xpath=//img[@id="showwannatip"]
+
+    # Input MTU size
+    SL.Wait Until Element Is Visible    xpath=//input[@name="ethMtu"]
+    ...                                 timeout=10s
+    ...                                 error=\nMTU size Text Box Not Found
+    SL.Input Text                       xpath=//input[@name="ethMtu"]    ${mtu_size}
+
+    Run Keyword If    '${configure_static_ip}' == 'False'    Obtain An IP Address Automatically For IPoE Wan Service Settings
+    ...   ELSE   Run Keyword   Use The Following Static IP Address For IPoE Wan Service Settings   wan_ip_address=${wan_ip_address}   wan_subnet_mask=${wan_subnet_mask}   wan_gateway=${wan_gateway}
+
+
+Obtain An IP Address Automatically For IPoE Wan Service Settings
+    [Documentation]                     Obtain IP Address automatically for IPoE WAN service settings.
+    ...                                 Input:
+    ...                                 1. option_60_vendor_id
+    ...                                 2. option_61_iaid
+    ...                                 3. option_61_duid
+    ...                                 4. option_125
+
+    SL.Wait Until Element Is Visible    xpath=//td[contains(text(),"Obtain an IP address automatically")]/input    timeout=10s    error=\nRadio Button "Obtain an IP address automatically" Not Found
+    SL.Click Element                    xpath=//td[contains(text(),"Obtain an IP address automatically")]/input
+
+
+Use The Following Static IP Address For IPoE Wan Service Settings
+    [Documentation]                     Set static IP address for IPoE WAN service settings.
+    ...                                 Input:
+    ...                                 1. wan_ip_address: Default is 0.0.0.0
+    ...                                 2. wan_subnet_mask: Default is 0.0.0.0
+    ...                                 3. wan_gateway: Default is 0.0.0.0
+
+    [Arguments]                         ${wan_ip_address}=0.0.0.0    ${wan_subnet_mask}=0.0.0.0    ${wan_gateway}=0.0.0.0
+
+    SL.Wait Until Element Is Visible    xpath=//td[contains(text(),"Use the following Static IP address")]/input
+    ...                                 timeout=10s
+    ...                                 error=\nRadio Button "Use the following Static IP address" Not Found
+    SL.Click Element                    xpath=//td[contains(text(),"Use the following Static IP address")]/input
+
+    # Input WAN IP address
+    SL.Wait Until Element Is Visible    xpath=//input[@name="wanIpAddress"]
+    ...                                 timeout=10s
+    ...                                 error=\n WAN IP Address Text Box Not Found
+    ${valid_ip_address}=                Run Keyword And Return Status       Should Match Regexp    ${wan_ip_address}    [0-9]{1,3}\\.+[0-9]{1,3}\\.+[0-9]{1,3}\\.+[0-9]{1,3}
+    Run Keyword If    '${valid_ip_address}' == 'False'    Fail    Invalid WAN IP address.
+    SL.Input Text                       xpath=//input[@name="wanIpAddress"]     ${wan_ip_address}
+
+    # Input WAN Subnet Mask
+    SL.Wait Until Element Is Visible    xpath=//input[@name="wanSubnetMask"]
+    ...                                 timeout=10s
+    ...                                 error=\n WAN Subnet Mask Text Box Not Found
+    ${valid_ip_address}=                Run Keyword And Return Status       Should Match Regexp    ${wan_subnet_mask}    [0-9]{1,3}\\.+[0-9]{1,3}\\.+[0-9]{1,3}\\.+[0-9]{1,3}
+    Run Keyword If    '${valid_ip_address}' == 'False'    Fail    Invalid WAN Subnet Mask.
+    SL.Input Text                       xpath=//input[@name="wanSubnetMask"]     ${wan_subnet_mask}
+
+    # Input WAN Gateway IP Address
+    SL.Wait Until Element Is Visible    xpath=//input[@name="wanIntfGateway"]
+    ...                                 timeout=10s
+    ...     error=\n WAN Gateway IP Address Text Box Not Found
+    ${valid_ip_address}=                Run Keyword And Return Status       Should Match Regexp    ${wan_gateway}    [0-9]{1,3}\\.+[0-9]{1,3}\\.+[0-9]{1,3}\\.+[0-9]{1,3}
+    Run Keyword If    '${valid_ip_address}' == 'False'    Fail    Invalid WAN Gateway IP address.
+    SL.Input Text                       xpath=//input[@name="wanIntfGateway"]     ${wan_gateway}
+
+
+Select Bridging Wan Service
+    [Documentation]                    Adding new WAN Bridging
+    ...                                Input:
+    ...                                1.service_description:text
+    ...                                2.priority: 0-7
+    ...                                3.vlanid: 0-4094
+    ...                                4.mtu_size:0-1500
+    [Arguments]                        ${service_description}=br_veip0     ${priority}=0       ${vlan_id}=12
+#    ...                                ${mtu_size}=1500
+    # Select Wan Bridging
+    SL.Page Should Contain Element     xpath=//input[@id="ntwkPrtcl3"]    error=\nAdd Button Bridging Not Found\n
+    SL.Click Button                    xpath=//input[@id="ntwkPrtcl3"]
+
+    # Set priority and vlan id
+    SL.Wait Until Element Is Visible   xpath=//input[@name="servicename"]    timeout=10
+    ...                                error=\nService description Not Found!\n
+    SL.Input Text                      xpath=//input[@name="servicename"]    ${service_description}
+    SL.Page Should Contain Element     xpath=//input[@name="vlanMuxPr"]      error=\n Page should contain 802.1P Priority!\n
+    SL.Input Text                      xpath=//input[@name="vlanMuxPr"]      ${priority}
+    SL.Page Should Contain Element     xpath=//input[@name="vlanMuxId"]      error=\nPage should contain 802.1Q VLAN ID!\n
+    SL.Input Text                      xpath=//input[@name="vlanMuxId"]      ${vlan_id}
+#    SL.Page Should Contain Element     xpath=//input[@name="ethMtu"]         error=\nPage should contain ethernet MTU size\n
+    # Save Configuration
+    SL.Click Button                    xpath=//input[@value="Apply/Save"]
+
+
+Popup Wan Ip Address Is Invalid Should Be Visible
+    [Documentation]                     Handle popup WAN IP address is invalid
+    [Arguments]                         ${wan_ip_address}
+
+    ${popup_message}=                   SL.Handle Alert    timeout=10s
+    Log To Console                      Popup message: ${popup_message}
+    Should Contain                      ${popup_message}     WAN IP address "${wan_ip_address}" is invalid IP address
+
+Popup Wan Subnet Mask Is Invalid Should Be Visible
+    [Documentation]                     Handle popup WAN subnet mask is invalid
+    [Arguments]                         ${wan_subnet_mask}
+
+    ${popup_message}=                   SL.Handle Alert    timeout=10s
+    Log To Console                      Popup message: ${popup_message}
+    Should Contain                      ${popup_message}     WAN subnet mask "${wan_subnet_mask}" is invalid IP address
+
+Popup Wan Gateway Is Invalid Should Be Visible
+    [Documentation]                     Handle popup WAN gateway IP address is invalid
+    [Arguments]                         ${wan_gateway}
+
+    ${popup_message}=                   SL.Handle Alert    timeout=10s
+    Log To Console                      Popup message: ${popup_message}
+    Should Contain                      ${popup_message}     WAN subnet mask "${wan_gateway}" is invalid gateway IP address
+
+Popup MTU Wan PPPoE Is Invalid Should Be Visible
+    [Documentation]                     Handle popup MTU WAN is invalid
+    [Arguments]                         ${mtu_wan}
+
+    ${popup_message}=                   SL.Handle Alert    timeout=10s
+    Log To Console                      Popup message: ${popup_message}
+    Should Contain                      ${popup_message}     MTU (${mtu_wan}) is out of rage [576-1492]
+    
+    
+Popup MTU Wan IPoE Is Invalid Should Be Visible
+    [Documentation]                     Handle popup MTU WAN is invalid
+    [Arguments]                         ${mtu_wan}
+
+    ${popup_message}=                   SL.Handle Alert    timeout=10s
+    Log To Console                      Popup message: ${popup_message}
+    Should Contain                      ${popup_message}     MTU (${mtu_wan}) is out of rage [576-2048]    
+
+
+Popup MTU Wan IPoE -1 Is Invalid Should Be Visible
+    [Documentation]                     Handle popup MTU WAN is invalid
+
+    ${popup_message}=                   SL.Handle Alert    timeout=10s
+    Log To Console                      Popup message: ${popup_message}
+    Should Contain                      ${popup_message}     IPoE MTU Size must be and integer number.
+################################
+
+###
+Popup Vlan Priority Out Of Range Should Be Visible
+    [Documentation]                     Handle popup VLAN Priority out of range
+    [Arguments]                         ${priority}
+
+    ${popup_message}=                   SL.Handle Alert    timeout=10s
+    Log To Console                      Popup message: ${popup_message}
+    Should Contain                      ${popup_message}     802.1P Priority "${priority}" is out of range [0-7].
+
+###
+Popup Vlan Id Out Of Range Should Be Visible
+    [Documentation]                     Handle popup VLAN ID out of range
+    [Arguments]                         ${vlan_id}
+
+    ${popup_message}=                   SL.Handle Alert    timeout=10s
+    Log To Console                      Popup message: ${popup_message}
+    Should Contain                      ${popup_message}     802.1Q VLAN ID "${vlan_id}" is out of range [0-4094].
+
+###
+Page Wan Connection Existed Should Be Visible
+    [Documentation]                     Handle page WAN connection has been existed
+    [Arguments]                         ${vlan_id}   ${priority}
+
+    SL.Wait Until Page Contains   A Wan connection VLAN ID "${vlan_id}" and Priority "${priority}" has been existed already.   timeout=30s   error=\nPage Wan connection existed is not visible.
+    SL.Page Should Contain   A Wan connection VLAN ID "${vlan_id}" and Priority "${priority}" has been existed already.
+
+###
+Get Column Index
+    [Documentation]             Get column index base on column name.
+    ...                         Input:
+    ...                         1. column_name
+    ...                         Return:
+    ...                         1. Column index if found, else return 'None'
+
+    [Arguments]                 ${column_name}
+
+    ${index}=                   Set Variable     None
+    SL.Set Selenium Speed       0.1
+    :FOR     ${i}     IN RANGE      1     16
+    \        ${element_is_visible}=    Run Keyword And Return Status       SL.Element Should Be Visible    xpath=//table[@class="wholetable"]/tbody/tr[1]/td[${i}]
+    \        Exit For Loop If    '${element_is_visible}' == 'False'
+    \        ${column_name_tmp}=       SL.Get Text    xpath=//table[@class="wholetable"]/tbody/tr[1]/td[${i}]
+    #\        Log To Console     Column Name Tmp= ${column_name_tmp}
+    \        ${index}=          Set Variable If    '${column_name_tmp}' == '${column_name}'     ${i}
+    \        Exit For Loop If   '${column_name_tmp}' == '${column_name}'
+    SL.Set Selenium Speed       0.3
+    [Return]                    ${index}
+
+###
+Get Row Index
+    [Documentation]             Get row index base on column name and column value.
+    ...                         Input:
+    ...                         1. column_name
+    ...                         2. column_value
+    ...                         Return:
+    ...                         1. Row index if found, else return 'None'
+
+    [Arguments]                 ${column_name}   ${column_value}
+
+    ${index}=                   Set Variable     None
+    SL.Set Selenium Speed       0.1
+    ${column_index_tmp}=        SeleniumNetworkSettingsWanLib.Get Column Index            ${column_name}
+    :FOR    ${row_i}     IN RANGE   2     20
+    \       ${element_is_visible}=    Run Keyword And Return Status       SL.Element Should Be Visible    xpath=//table[@class="wholetable"]/tbody/tr[${row_i}]/td[4]
+    \       Exit For Loop If    '${element_is_visible}' == 'False'
+    \       ${column_value_tmp}=     SL.Get Text     xpath=//table[@class="wholetable"]/tbody/tr[${row_i}]/td[${column_index_tmp}]
+    #\       Log To Console      ${column_value_tmp}
+    \       ${index}=           Set Variable If     '${column_value_tmp}' == '${column_value}'    ${row_i}
+    \       Exit For Loop If    '${column_value_tmp}' == '${column_value}'
+    SL.Set Selenium Speed       0.3
+    [Return]                    ${index}
+
+###
+Remove Wan Ability Should Be Disabled
+    [Documentation]             Checking function remove WAN NMS, should be disabled
+    ...                         Input:
+    ...                         1. vlan_id
+
+    [Arguments]                 ${vlan_id}
+
+    ${row_index}=               SeleniumNetworkSettingsWanLib.Get Row Index    column_name=VlanMuxId    column_value=${vlan_id}
+    ${remove_column_index}=     SeleniumNetworkSettingsWanLib.Get Column Index    column_name=Remove
+    Run Keyword If     '${row_index}' != 'None'     SL.Element Should Be Disabled      xpath=//table[@class="wholetable"]/tbody/tr[${row_index}]/td[${remove_column_index}]/input
+    ...       ELSE     Fail     WAN service with VLAN ID ${vlan_id} not found
+
+###
+Remove Wan Ability Should Be Enabled
+    [Documentation]             Checking function remove WAN NMS, should be enabled
+    ...                         Input:
+    ...                         1. vlan_id
+
+    [Arguments]                 ${vlan_id}
+
+    ${row_index}=               SeleniumNetworkSettingsWanLib.Get Row Index    column_name=VlanMuxId    column_value=${vlan_id}
+    ${remove_column_index}=     SeleniumNetworkSettingsWanLib.Get Column Index    column_name=Remove
+    Run Keyword If     '${row_index}' != 'None'     SL.Element Should Be Enabled      xpath=//table[@class="wholetable"]/tbody/tr[${row_index}]/td[${remove_column_index}]/input
+    ...       ELSE     Fail     WAN service with VLAN ID ${vlan_id} not found
+
+###
+Edit Wan Ability Should Be Disabled
+    [Documentation]             Checking function edit WAN NMS, should be disabled
+    ...                         Input:
+    ...                         1. vlan_id
+
+    [Arguments]                 ${vlan_id}
+
+    ${row_index}=               SeleniumNetworkSettingsWanLib.Get Row Index    column_name=VlanMuxId    column_value=${vlan_id}
+    ${edit_column_index}=       SeleniumNetworkSettingsWanLib.Get Column Index    column_name=Edit
+    Run Keyword If     '${row_index}' != 'None'     SL.Element Should Be Disabled      xpath=//table[@class="wholetable"]/tbody/tr[${row_index}]/td[${edit_column_index}]/input
+    ...       ELSE     Fail     WAN service with VLAN ID ${vlan_id} not found
+
+###
+Edit Wan Ability Should Be Enabled
+    [Documentation]             Checking function edit WAN NMS, should be enabled
+    ...                         Input:
+    ...                         1. vlan_id
+
+    [Arguments]                 ${vlan_id}
+
+    ${row_index}=               SeleniumNetworkSettingsWanLib.Get Row Index    column_name=VlanMuxId    column_value=${vlan_id}
+    ${edit_column_index}=       SeleniumNetworkSettingsWanLib.Get Column Index    column_name=Edit
+    Run Keyword If     '${row_index}' != 'None'     SL.Element Should Be Enabled      xpath=//table[@class="wholetable"]/tbody/tr[${row_index}]/td[${edit_column_index}]/input
+    ...       ELSE     Fail     WAN service with VLAN ID ${vlan_id} not found
+
+###
+Create New Wan PPPoE
+    [Documentation]              Create new WAN PPPoE. Remove existed WAN PPPoE matching VLAN ID before add a new one.
+    ...                          Input:
+    ...                          1. network_protocol: IPv4/IPv4&IPv6/IPv6
+    ...                          2. priority: [0-7]
+    ...                          3. vlan_id: [0-4094]
+    ...                          4. ppp_username: Default value is empty
+    ...                          5. ppp_password: Default value is empty
+    ...                          6. routing_default_gw: Default value is "Current Interface"
+    ...                          7. wan_interface: Default value is "Current Interface"
+    ...                          8. ppp_mtu_size: Default value is 1492
+    ...                          9. configure_advanced_wan_pppoe: Set equal True if user want to expand WAN service settings. Default is False
+    ...                          10. routing_default_gw_ipv6: Default value is "Current Interface"
+    ...                          11. wan_interface_ipv6: Default value is "Current Interface"
+
+    [Arguments]                  ${url}
+    ...                          ${network_protocol}
+    ...                          ${priority}
+    ...                          ${vlan_id}
+    ...                          ${ppp_username}
+    ...                          ${ppp_password}
+    ...                          ${routing_default_gw}=Current Interface
+    ...                          ${wan_interface}=Current Interface
+    ...                          ${ppp_mtu_size}=1492
+    ...                          ${configure_advanced_wan_pppoe}=False
+    ...                          ${routing_default_gw_ipv6}=Current Interface
+    ...                          ${wan_interface_ipv6}=Current Interface
+
+    Add New Wan Service          wan_service_type=PPPoE
+    Select PPPoE Wan Service     network_protocol=${network_protocol}
+    ...                          priority=${priority}
+    ...                          vlan_id=${vlan_id}
+    ...                          ppp_username=${ppp_username}
+    ...                          ppp_password=${ppp_password}
+    ...                          routing_default_gw=${routing_default_gw}
+    ...                          wan_interface=${wan_interface}
+    ...                          ppp_mtu_size=${ppp_mtu_size}
+    ...                          configure_advanced_wan_pppoe=${configure_advanced_wan_pppoe}
+    ...                          routing_default_gw_ipv6=${routing_default_gw_ipv6}
+    ...                          wan_interface_ipv6=${wan_interface_ipv6}
+    Apply Wan Settings
+
+Create New Wan IPoE
+    [Documentation]              Create new WAN IPoE. Remove existed WAN IPoE matching VLAN ID before add a new one.
+    ...                          Input:
+    ...                          1. network_protocol: IPv4/IPv4&IPv6/IPv6
+    ...                          2. priority: [0-7]
+    ...                          3. ppoe_vlan_id: [0-4094]
+    ...                          4. configure_wan_service_settings: Set equal True if user want to expand WAN service settings. Default is False
+    ...                          5. configure_static_ip: Set equal True if configure IPoE WAN service settings to use static IP address. Default is False
+    ...                          6. wan_ip_address
+    ...                          7. wan_subnet_mask
+    ...                          8. wan_gateway
+    ...                          9. ppp_routing_default_gw: Default value is "Current Interface"
+    ...                          10. ppp_wan_interface: Default value is "Current Interface"
+
+    [Arguments]                  ${url}
+    ...                          ${network_protocol}
+    ...                          ${priority}
+    ...                          ${vlan_id}
+    ...                          ${configure_wan_service_settings}=False
+    ...                          ${configure_static_ip}=False
+    ...                          ${wan_ip_address}=0.0.0.0
+    ...                          ${wan_subnet_mask}=0.0.0.0
+    ...                          ${wan_gateway}=0.0.0.0
+    ...                          ${routing_default_gw}=Current Interface
+    ...                          ${wan_interface}=Current Interface
+
+    Add New Wan Service          wan_service_type=IPoE
+    Select IPoE Wan Service      network_protocol=${network_protocol}
+    ...                          priority=${priority}
+    ...                          vlan_id=${vlan_id}
+    ...                          configure_wan_service_settings=${configure_wan_service_settings}
+    ...                          configure_static_ip=${configure_static_ip}
+    ...                          wan_ip_address=${wan_ip_address}
+    ...                          wan_subnet_mask=${wan_subnet_mask}
+    ...                          wan_gateway=${wan_gateway}
+    ...                          routing_default_gw=${routing_default_gw}
+    ...                          wan_interface=${wan_interface}
+    Apply Wan Settings
+
+Create New Wan Bridge
+    [Documentation]              Create new WAN Bridging. Remove existed WAN IPoE matching VLAN ID before add a new one.
+    ...                          Input:
+    ...                          1. service_description: Default is br_veip0
+    ...                          2. priority
+    ...                          3. vlan_id
+    ...                          4. mtu_size
+
+    [Arguments]                  ${url}
+    ...                          ${service_description}=br_veip0
+    ...                          ${priority}=0
+    ...                          ${vlan_id}=0
+    ...                          ${mtu_size}=1500
+
+    Open Network Settings Wan Page    url=${url}
+    Remove Wan Service           vlan_id=${vlan_id}
+
+    Add New Wan Service          wan_service_type=Bridging
+    Select Bridging Wan Service     service_description=${service_description}
+    ...                          priority=${priority}
+    ...                          vlan_id=${vlan_id}
+
+
+###
+Verify Status Nat And Firewall With Account Operator
+    SL.Wait Until Page Contains      ETH WAN Configuration    timeout=10    error=\n\Page edit eth did not show up\n
+    Log To Console                   Check Firewall Enabled
+    SL.Page Should Contain Element   xpath=//input[@name="enblFirewallppp"]
+    Checkbox Should Be Selected      xpath=//input[@name="enblFirewallppp"]
+    Log To Console                   Check Nat Enabled
+    SL.Page Should Contain Element   xpath=//input[@name="enblNatppp"]
+    Checkbox Should Be Selected      xpath=//input[@name="enblNatppp"]
+    Log To Console                   Check Firewall Can Be Active
+    Element Should Be Enabled        xpath=//input[@name="enblFirewallppp"]
+    Log To Console                   Check Nat Can Be Active
+    Element Should Be Enabled        xpath=//input[@name="enblNatppp"]

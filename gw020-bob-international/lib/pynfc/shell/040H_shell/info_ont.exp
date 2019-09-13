@@ -1,0 +1,23 @@
+#!/user/bin/expect
+set ip [lindex $argv 0]
+spawn telnet $ip
+expect "tc login: "
+send "admin\n"
+sleep 0.5
+expect "Password: "
+send "VnT3ch@dm1n\n"
+sleep 0.5
+expect "#"
+send "tcapi show GPON_ONU | grep Serial\n"
+sleep 0.5
+expect "#"
+send "ifconfig br0 | grep HWaddr\n"
+sleep 0.5
+send "cat /etc/fwver.conf\n"
+sleep 0.5
+send "cat /proc/version\n"
+sleep 0.5
+send "cat etc/revision\n"
+sleep 0.5
+send "exit\n"
+interact

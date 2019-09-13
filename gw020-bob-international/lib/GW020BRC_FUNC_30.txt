@@ -1,0 +1,116 @@
+*** Settings ***
+Library     SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library     AppiumLibrary     run_on_failure=AL.Capture Page Screenshot    WITH NAME    AL
+Resource    selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource    selenium/Login/SeleniumLoginLib.txt
+Resource    selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessBasicLib.txt
+Resource    variables/AllVariables.txt
+Resource    appium/Settings/AppiumSettingsWifiLib.txt
+Resource    selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+
+*** Variables ***
+${APPIUM_REMOTE_PORT_1}                      7001
+${LOGIN_BUTTON}                              xpath=//button[@class="loginBtn"]
+
+*** Keywords ***
+
+GW020BRC_FUNC_30_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+    
+Change Max Clients Parameter
+    [Arguments]                              ${max_client}                     ${wireless_configure_url}=http://192.168.1.1/wlcfg.html
+    ${onWirelessConfigurationPage}=          Run Keyword And Return Status             SL.Page Should Contain           Wireless -- Basic
+    Run Keyword If                           ${onWirelessConfigurationPage} == False   Open Wireless Configure Page     wireless_configure_url=${wireless_configure_url}
+    SL.Wait Until Element Is Visible         xpath=//input[@name="wlMaxAssoc"]      timeout=10s       error=\nMax client Textbox Does Not Show Up
+    SL.Input Text                            xpath=//input[@name="wlMaxAssoc"]      ${max_client}
+    SL.Click Button                          xpath=//input[@value="Apply/Save"]
+    SL.Wait Until Page Contains              Wireless -- Basic
+    ...                                      timeout=10s
+    ...                                      error=\nWireless Configuration Page Does Not Found\n
+    Log To Console                           Change Max client to ${max_client}  
+  
+GW020BRC_FUNC_30
+    
+    #Step 1: Access WEB GUI via LAN with user/password - admin/ttcn@99CN
+    SL.Set Selenium Speed                    0.7
+    Set Test Message                         *HTML* <b>GW020BRC_FUNC_30</b>
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}    
+    Welcome Page Should Be Open
+    #Access wireless basic configuration page to change max clients
+    Open Wireless Configure Page             wireless_configure_url=${WIRELESS_CONFIGURE_URL}
+    Enable Wireless
+
+    #####Change WiFi Name for Main SSID to '${WIFI_SSID_1}'
+    Log To Console                          \nChange WiFi Name for Main SSID to '${WIFI_SSID_1}'\n
+    Name SSID                                ssid=${WIFI_SSID_1}    
+    
+    Log To Console                          \nChange max clients parameter and save
+    Change Max Clients Parameter             max_client=1               
+    
+    #Step 3: Turn off wifi UE device B
+    Log To Console                          \nVerify UE device B turn off wifi
+    Open Wifi Picker Activity               remote_server=${APPIUM_REMOTE_SERVER}
+    ...                                     remote_port=${APPIUM_REMOTE_PORT_1}
+    ...                                     platform=${PLATFORM_NAME}
+    ...                                     version=${PLATFORM_VERSION}
+    ...                                     ue_device_name=${DEVICE_NAME}
+
+    Turn Off Wifi    
+    AL.Close Application
+
+    #Step 4: Connect max UE to wifi, after that connect more than 1 UE, It shouldn't connect
+    Log To Console                          \nConnect client to SSID
+    Open Wifi Picker Activity               remote_server=${APPIUM_REMOTE_SERVER}    
+    ...                                     remote_port=${APPIUM_REMOTE_PORT}    
+    ...                                     platform=${PLATFORM_NAME}    
+    ...                                     version=${PLATFORM_VERSION}    
+    ...                                     ue_device_name=${DEVICE_NAME}  
+    Turn On Wifi
+    Forget Saved Network And Add Network    wifi_ssid=${WIFI_SSID_1}
+    ...                                     wifi_security=None
+    ...                                     status=Connected
+    ${ip}=       Get Granted Ip Address
+    Should Contain                          ${ip}           ${ONT_SUBNET}
+    AL.Close Application
+
+    ### Step 4: Verify UE out of range Max client connect failed to SSID 
+    Log To Console                          \nVerify UE device B connect to WiFi ${WIFI_SSID_1}
+    Open Wifi Picker Activity               remote_server=${APPIUM_REMOTE_SERVER}
+    ...                                     remote_port=${APPIUM_REMOTE_PORT_1}
+    ...                                     platform=${PLATFORM_NAME}
+    ...                                     version=${PLATFORM_VERSION}
+    ...                                     ue_device_name=${DEVICE_NAME}
+    Turn On Wifi
+    Forget Saved Network And Add Network    wifi_ssid=${WIFI_SSID_1}
+    ...                                     wifi_security=None
+    ...                                     status=Wi-Fi Connection Failure
+    AL.Close Application    
+
+    [Teardown]    Run Keyword And Ignore Error        GW020BRC_FUNC_30_Teardown
+
+# *** Test Cases ***
+# GW020BRC_FUNC_30
+    # GW020BRC_FUNC_30

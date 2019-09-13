@@ -1,0 +1,44 @@
+*** Settings ***
+Library                          SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+
+*** Variables ***
+${Diagnostics_LAN_url}          http://192.168.1.1/diaglan.html
+
+*** Keywords ***
+Open Diagnostics LAN Page
+    [Arguments]                              ${Diagnostics_LAN_url}=${Diagnostics_LAN_url}
+    SL.Go to                                 ${Diagnostics_LAN_url}
+    SL.Wait Until Page Contains              Diagnostics LAN
+    ...                                      timeout=10s
+    ...                                      error=\nDiagnostics LAN Page Does Not Found\n
+    SL.Page Should Contain                   Diagnostics LAN
+
+Get Cell Value_Diagnostic
+    [Arguments]                 ${first_row_name}
+    ${connection_status}=    SL.Get Text    xpath=//td[contains(text(), "${first_row_name}")]/parent::tr/td[2]
+    [Return]                    ${connection_status}
+
+Diagnostics LAN 1 Should Be Pass
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsLANLib.Get Cell Value_Diagnostic   first_row_name=Test your lan1 Connection
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'PASS'
+
+Diagnostics LAN 1 Should Be Fail
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsLANLib.Get Cell Value_Diagnostic   first_row_name=Test your lan1 Connection
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'FAIL'
+
+Diagnostics LAN 2 Should Be Fail
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsLANLib.Get Cell Value_Diagnostic   first_row_name=Test your lan2 Connection
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'FAIL'
+
+Diagnostics Wireless Should Be Fail
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsLANLib.Get Cell Value_Diagnostic   first_row_name=Test your Wireless Connection
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'FAIL '
+
+Diagnostics Wireless Should Be Pass
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsLANLib.Get Cell Value_Diagnostic   first_row_name=Test your Wireless Connection
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'PASS '

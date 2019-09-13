@@ -1,0 +1,78 @@
+*** Settings ***
+Library     SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL 
+Resource    selenium/Login/SeleniumLoginLib.txt   
+Resource    selenium/Management/SLIDConfig/SeleniumManagementSLIDConfigLib.txt   
+Resource    selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource    variables/AllVariables.txt
+
+*** Variables ***
+${LOGIN_BUTTON}                              xpath=//button[@class="loginBtn"]
+
+*** Keywords ***
+GW020BRC_FUNC_05_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+
+GW020BRC_FUNC_05
+    [Arguments]                              ${correct_slid}    ${wrong_slid}    ${slid_mode}=ASCII
+    SL.Set Selenium Speed                    0.7
+    Set Test Message                         *HTML* <b>GW020BRC_FUNC_05</b>     
+    Log To Console                           \nStep 1.1: Log in to Browser
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Log To Console                           \nStep 1.2: Open SLID Config Page => Get Current SLID
+    Go To SLID Config Page
+    ${current_slid}=                         Run Keyword    Get Current SLID 
+    
+    Log To Console                           \nStep 1.3: Change correct SLID
+    Change SLID                              ${correct_slid}    ${slid_mode}
+    Alert Should Not Be Present
+
+    Log To Console                           \nStep 1.4: Change wrong SLID
+    Change SLID                              ${wrong_slid}    ${slid_mode}
+    Alert Should Be Present
+
+    Log To Console                           \nStep 1.5: Factory Reset
+    Run Keyword And Continue On Failure      Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    Log To Console                           \nStep 1.6: Verify SLID
+    Go To SLID Config Page
+    ${change_slid}=                          Run Keyword    Get Current SLID 
+    Should Contain                           ${change_slid}    ${correct_slid}
+    SL.Close All Browsers
+
+    [Teardown]    Run Keyword And Ignore Error    GW020BRC_FUNC_05_Teardown
+
+# *** Test Cases ***
+# GW020BRC_FUNC_05
+    # GW020BRC_FUNC_05                         002470795    124hoangquocvietvnpttech    ASCII
+    

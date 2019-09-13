@@ -1,0 +1,207 @@
+*** Settings ***
+Library              SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library              AppiumLibrary   run_on_failure=AL.Capture Page Screenshot    WITH NAME    AL
+Resource             selenium/Login/SeleniumLoginLib.txt
+Resource             selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessBasicLib.txt
+Resource             selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessSecurityLib.txt
+Resource             selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessMACFilter.txt
+Resource             ssh/SshLib.txt
+Resource             selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource             variables/AllVariables.txt
+Resource             appium/Settings/AppiumSettingsWifiLib.txt
+Resource             selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+
+*** Variables ***
+${LOGIN_BUTTON}                              xpath=//button[@class="loginBtn"]
+${DEVICE_NAME}                               025240911130891
+${DEVICE_NAME_2}                             025241111136891
+
+*** Keywords ***
+GW020BRC_FUNC_48_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+    ###Close Application
+    AL.Close All Applications
+
+GW020BRC_FUNC_48
+    SL.Set Selenium Speed                   0.8
+    Set Test Message                        *HTML* <b>GW020BRC_FUNC_48</b>
+    Log To Console                          Get Mac Address Smartphone A
+    Open Wifi Picker Activity               remote_server=${APPIUM_REMOTE_SERVER}
+    ...                                     remote_port=${APPIUM_REMOTE_PORT}
+    ...                                     platform=${PLATFORM_NAME}
+    ...                                     version=${PLATFORM_VERSION}
+    ...                                     ue_device_name=${DEVICE_NAME}
+    Turn On Wifi
+    ${mac_address}=                         Get Mac Address
+    AL.Close Application
+
+    Log To Console                          \nStep 1.1: Login to WEBGUI
+    Login To Browser                        remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                     url=${LOGIN_URL}
+    ...                                     username=${ONT_WEB_USER}
+    ...                                     password=${ONT_WEB_PASS}
+    ...                                     browser=${BROWSER}
+    Welcome Page Should Be Open
+
+    #####Enable Wireles
+    Open Wireless Configure Page            wireless_configure_url=${WIRELESS_CONFIGURE_URL}
+    Log To Console                          \nStep 1.2: Enable Wireless
+    Enable Wireless
+
+    #####Change WiFi Name for Main SSID to '${WIFI_SSID_1}'
+    Log To Console                          \nStep 1.4: Change WiFi Name for Main SSID to '${WIFI_SSID_1}'
+    Name SSID                               ssid=${WIFI_SSID_1}
+
+    ################Select Security for MAIN SSID
+    Log To Console                          \nStep 1.5: Select Security for MAIN SSID
+    #Open Wireless Security Page
+    Open Wireless Security Page
+    Select SSID                             ${WIFI_SSID_1}
+    Select Network Authentication            WPA2 -PSK
+    Configure WPA2-PSK Mode                  password=${WIFI_PASS}
+
+    ####Step 2: Add MAC Filter
+    Log To Console                          \nStep 2: Add MAC Filter\n
+    Open Mac Filter Page
+    Select SSID For Mac Filter              ssid=${WIFI_SSID_1}
+    Add MAC Address                         mac_address=${mac_address}
+    Sleep                                   5s
+    ##########Step 2.1: Config Mac Filter Mode Disabled
+    Log To Console                          \nStep 2.1: Config Mac Filter Mode Disabled\n
+    Config Mac Filter Mode                  mode=Disabled
+
+    Log To Console                          \nVerify UE device A connected to WiFi ${WIFI_SSID_1}
+    Open Wifi Picker Activity               remote_server=${APPIUM_REMOTE_SERVER}
+    ...                                     remote_port=${APPIUM_REMOTE_PORT}
+    ...                                     platform=${PLATFORM_NAME}
+    ...                                     version=${PLATFORM_VERSION}
+    ...                                     ue_device_name=${DEVICE_NAME}
+    Turn On Wifi
+    Forget Saved Network And Add Network    wifi_ssid=${WIFI_SSID_1}
+    ...                                     wifi_security=WPA/WPA2 PSK
+    ...                                     wifi_password=${WIFI_PASS}
+    ...                                     status=Connected
+    ${ip}=       Get Granted Ip Address
+    Should Contain                          ${ip}           ${ONT_SUBNET}
+    AL.Close Application
+
+    ###Reload Page to keep Session
+    # SL.Reload Page
+    Log To Console                          \nVerify UE device B connected to WiFi ${WIFI_SSID_1}
+    Open Wifi Picker Activity               remote_server=${APPIUM_REMOTE_SERVER}
+    ...                                     remote_port=${APPIUM_REMOTE_PORT_1}
+    ...                                     platform=${PLATFORM_NAME}
+    ...                                     version=${PLATFORM_VERSION}
+    ...                                     ue_device_name=${DEVICE_NAME_2}
+    Turn On Wifi
+    Forget Saved Network And Add Network    wifi_ssid=${WIFI_SSID_1}
+    ...                                     wifi_security=WPA/WPA2 PSK
+    ...                                     wifi_password=${WIFI_PASS}
+    ...                                     status=Connected
+    ${ip}=       Get Granted Ip Address
+    Should Contain                          ${ip}           ${ONT_SUBNET}
+    AL.Close Application
+
+    ###########Step 2.2: Config Mac Filter Mode Allow
+    Log To Console                          \nStep 2.2: Config Mac Filter Mode Allow\n
+    Config Mac Filter Mode                  mode=Allow
+
+    Log To Console                          \nVerify UE device A connected to WiFi ${WIFI_SSID_1}
+    Open Wifi Picker Activity               remote_server=${APPIUM_REMOTE_SERVER}
+    ...                                     remote_port=${APPIUM_REMOTE_PORT}
+    ...                                     platform=${PLATFORM_NAME}
+    ...                                     version=${PLATFORM_VERSION}
+    ...                                     ue_device_name=${DEVICE_NAME}
+    Turn On Wifi
+    Forget Saved Network And Add Network    wifi_ssid=${WIFI_SSID_1}
+    ...                                     wifi_security=WPA/WPA2 PSK
+    ...                                     wifi_password=${WIFI_PASS}
+    ...                                     status=Connected
+    ${ip}=       Get Granted Ip Address
+    Should Contain                          ${ip}           ${ONT_SUBNET}
+    AL.Close Application
+
+    ###Reload Page to keep Session
+    #SL.Reload Page
+
+    Log To Console                          \nVerify UE device B connected to WiFi ${WIFI_SSID_1}
+    Open Wifi Picker Activity               remote_server=${APPIUM_REMOTE_SERVER}
+    ...                                     remote_port=${APPIUM_REMOTE_PORT_1}
+    ...                                     platform=${PLATFORM_NAME}
+    ...                                     version=${PLATFORM_VERSION}
+    ...                                     ue_device_name=${DEVICE_NAME}
+    Turn On Wifi
+    Forget Saved Network And Add Network    wifi_ssid=${WIFI_SSID_1}
+    ...                                     wifi_security=WPA/WPA2 PSK
+    ...                                     wifi_password=${WIFI_PASS}
+    ...                                     status=Wi-Fi Connection Failure
+    AL.Close Application
+
+    ###########Step 2.1: Config Mac Filter Mode Deny
+    Log To Console                          \nStep 2.3: Config Mac Filter Mode Deny\n
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Open Mac Filter Page
+
+    Config Mac Filter Mode                  mode=Deny
+
+    Log To Console                          \nVerify UE device A connected to WiFi ${WIFI_SSID_1}
+    Open Wifi Picker Activity               remote_server=${APPIUM_REMOTE_SERVER}
+    ...                                     remote_port=${APPIUM_REMOTE_PORT}
+    ...                                     platform=${PLATFORM_NAME}
+    ...                                     version=${PLATFORM_VERSION}
+    ...                                     ue_device_name=${DEVICE_NAME}
+    Turn On Wifi
+    Forget Saved Network And Add Network    wifi_ssid=${WIFI_SSID_1}
+    ...                                     wifi_security=WPA/WPA2 PSK
+    ...                                     wifi_password=${WIFI_PASS}
+    ...                                     status=Wi-Fi Connection Failure
+    AL.Close Application
+
+    ###Reload Page to keep Session
+    #SL.Reload Page
+
+    Log To Console                          \nVerify UE device B connected to WiFi ${WIFI_SSID_1}
+    Open Wifi Picker Activity               remote_server=${APPIUM_REMOTE_SERVER}
+    ...                                     remote_port=${APPIUM_REMOTE_PORT_1}
+    ...                                     platform=${PLATFORM_NAME}
+    ...                                     version=${PLATFORM_VERSION}
+    ...                                     ue_device_name=${DEVICE_NAME}
+    Turn On Wifi
+    Forget Saved Network And Add Network    wifi_ssid=${WIFI_SSID_1}
+    ...                                     wifi_security=WPA/WPA2 PSK
+    ...                                     wifi_password=${WIFI_PASS}
+    ...                                     status=Connected
+    ${ip}=       Get Granted Ip Address
+    Should Contain                          ${ip}           ${ONT_SUBNET}
+    AL.Close Application
+    SL.Close Browser
+
+    [Teardown]    Run Keyword And Ignore Error     GW020BRC_FUNC_48_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_48
+    # GW020BRC_FUNC_48

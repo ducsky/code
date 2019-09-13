@@ -1,0 +1,28 @@
+*** Settings ***
+Documentation                Selenium Lib To Reset, Reboot Device
+Library                      SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+
+*** Variables ***
+
+*** Keywords ***
+Factory Reset Via Web GUI
+    [Arguments]          ${factory_reset_url}=http://192.168.1.1/defaultsettings.html
+    SL.Go To             ${factory_reset_url}
+    SL.Wait Until Page Contains   Settings -- Factory Reset    timeout=10s   error=\nFactory Reset Page Does Not Show Up!
+    SL.Page Should Contain        Settings -- Factory Reset
+    SL.Wait Until Element Is Visible       xpath=//*[@value="Restore Default Settings"]    timeout=10s     error=\nReset Button Not Found!
+    SL.Click Button               xpath=//*[@value="Restore Default Settings"]
+    SL.Handle Alert
+    Run Keyword And Ignore Error    SL.Wait Until Element Is Visible    xpath=//button[@class="loginBtn"]
+    ...                                   timeout=120s
+    ...                                   error=\nLogin Page Does Not Found!
+
+Factory Reset Via Web GUI Without Waiting
+    [Documentation]       Reset factory device without waiting for device reset successfully
+    [Arguments]          ${factory_reset_url}=http://192.168.1.1/defaultsettings.html
+    SL.Go To             ${factory_reset_url}
+    SL.Wait Until Page Contains   Settings -- Factory Reset    timeout=10s   error=\nFactory Reset Page Does Not Show Up!
+    SL.Page Should Contain        Settings -- Factory Reset
+    SL.Wait Until Element Is Visible       xpath=//*[@value="Restore Default Settings"]    timeout=10s     error=\nReset Button Not Found!
+    SL.Click Button               xpath=//*[@value="Restore Default Settings"]
+    SL.Handle Alert

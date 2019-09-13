@@ -1,0 +1,153 @@
+*** Settings ***
+Library                                       SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library                                       SSHLibrary    WITH NAME    SSHL
+Resource                                      selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource                                      selenium/Login/SeleniumLoginLib.txt
+Resource                                      selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource                                      ssh/SshLib.txt
+Resource                                      selenium/Management/Reboot/SeleniumManagementRebootLib.txt
+Resource                                      selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource                                      variables/AllVariables.txt
+
+*** Variables ***
+${LOGIN_BUTTON}                               xpath=//button[@class="loginBtn"]
+${IPOE_IP}                                    10.10.10.5
+
+*** Keywords ***
+GW020BRC_FUNC_10_TC_02_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+    ###Close SSH
+    SSHL.Close All Connections
+
+GW020BRC_FUNC_10_TC_02
+
+    ################Step 1: Access Network Settings WAN page and configure invalid WAN IP address
+    SL.Set Selenium Speed                    0.7
+    Set Test Message                         *HTML* <b>GW020BRC_FUNC_10_TC_02</b>
+    Log To Console                           \nStep 1: Access Network Settings WAN page and configure invalid WAN IP address
+    Log To Console                           \nStep1.1:Login To WEBGUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+
+    ##################Step1.2:Create new WAN IPoE with invalid parameters
+    Log To Console                           \nStep1.2:Create new WAN IPoE with invalid parameters
+    Open Network Settings Wan Page           url=${NETWORK_SETTINGS_WAN_URL}
+    Create New Wan IPoE                      url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                      network_protocol=${IPOE_NETWORK_PROTOCOL}
+    ...                                      priority=${CORRECT_IPOE_VLAN_PRIORITY}
+    ...                                      vlan_id=${CORRECT_IPOE_VLAN_ID_STATIC}
+    ...                                      configure_wan_service_settings=True
+    ...                                      configure_static_ip=True
+    ...                                      wan_ip_address=0.0.0.0
+    ...                                      wan_subnet_mask=255.255.255.252
+    ...                                      wan_gateway=10.10.10.1
+    Popup Wan Ip Address Is Invalid Should Be Visible     wan_ip_address=0.0.0.0
+
+    ##################Step 2: Configure invalid WAN subnet mask
+    Log To Console                           \nStep 2: Configure invalid WAN subnet mask
+    Open Network Settings Wan Page           url=${NETWORK_SETTINGS_WAN_URL}
+    Create New Wan IPoE                      url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                      network_protocol=${IPOE_NETWORK_PROTOCOL}
+    ...                                      priority=${CORRECT_IPOE_VLAN_PRIORITY}
+    ...                                      vlan_id=${CORRECT_IPOE_VLAN_ID_STATIC}
+    ...                                      configure_wan_service_settings=True
+    ...                                      configure_static_ip=True
+    ...                                      wan_ip_address=10.10.10.2
+    ...                                      wan_subnet_mask=0.0.0.0
+    ...                                      wan_gateway=10.10.10.1
+    Popup Wan Subnet Mask Is Invalid Should Be Visible     wan_subnet_mask=0.0.0.0
+
+    ################Step 3: Configure invalid WAN gateway IP address
+    Log To Console                           \nStep 3: Configure invalid WAN gateway IP address
+    Open Network Settings Wan Page           url=${NETWORK_SETTINGS_WAN_URL}
+    Create New Wan IPoE                      url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                      network_protocol=${IPOE_NETWORK_PROTOCOL}
+    ...                                      priority=${CORRECT_IPOE_VLAN_PRIORITY}
+    ...                                      vlan_id=${CORRECT_IPOE_VLAN_ID_STATIC}
+    ...                                      configure_wan_service_settings=True
+    ...                                      configure_static_ip=True
+    ...                                      wan_ip_address=10.10.10.2
+    ...                                      wan_subnet_mask=255.255.255.252
+    ...                                      wan_gateway=0.0.0.0
+    Popup Wan Gateway Is Invalid Should Be Visible     wan_gateway=0.0.0.0
+
+    ##########Step 4: Configure correct IPoE WAN with Static IP
+    Log To Console                           \nStep 4.1: Configure correct IPoE WAN with Static IP
+    Open Network Settings Wan Page           url=${NETWORK_SETTINGS_WAN_URL}
+    Create New Wan IPoE                      url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                      network_protocol=${IPOE_NETWORK_PROTOCOL}
+    ...                                      priority=${CORRECT_IPOE_VLAN_PRIORITY}
+    ...                                      vlan_id=${CORRECT_IPOE_VLAN_ID_STATIC}
+    ...                                      configure_wan_service_settings=True
+    ...                                      configure_static_ip=True
+    ...                                      wan_ip_address=${CORRECT_WAN_IP_ADDRESS}
+    ...                                      wan_subnet_mask=${CORRECT_WAN_SUBNET_MASK}
+    ...                                      wan_gateway=${CORRECT_WAN_GATEWAY}
+
+
+    ##########Step 4.2: Verify configure IPoE WAN with Static IP succeed on web
+    Log To Console                           \nStep 4.2: Verify configure IPoE WAN with Static IP succeed
+    Wait Until Keyword Succeeds              5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_IPOE_VLAN_ID_STATIC}
+
+    ############Step 4.3: Verify Ping to 10.10.10.1 should success
+    Log To Console                           \nStep 4.3: Verify Ping to 10.10.10.5 should success
+    Open Connection And Login To Remote Machine    ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+    ${lan_interface}=                              SSHL.Execute Command    ifconfig | grep -B1 "inet addr:192.168" | awk '$1!="inet" && $1!="--" {print $1}'
+    Wait Until Keyword Succeeds                    5x    1s    Ping Should Succeed    ping_address=${IPOE_IP}    network_interface=${lan_interface}
+
+
+    #########Step 5: Add another WAN IPoE with the same VLAN ID & Priority
+    Log To Console                           \nStep 5: Add another WAN IPoE with the same VLAN ID & Priority
+    Open Network Settings Wan Page           url=${NETWORK_SETTINGS_WAN_URL}
+    Add New Wan Service                      wan_service_type=IPoE
+    Select IPoE Wan Service                  network_protocol=${IPOE_NETWORK_PROTOCOL}
+    ...                                      priority=${CORRECT_IPOE_VLAN_PRIORITY}
+    ...                                      vlan_id=${CORRECT_IPOE_VLAN_ID_STATIC}
+    Apply Wan Settings
+    Page Wan Connection Existed Should Be Visible   vlan_id=${CORRECT_IPOE_VLAN_ID_STATIC}   priority=${CORRECT_IPOE_VLAN_PRIORITY}
+
+    ########################Step 6: Reboot device and verify again configure WAN succeed
+    ##Step 6.1: Reboot ONT
+    Log To Console                           \nStep 6.1: Reboot ONT
+    Run Keyword And Continue On Failure      Reboot Device Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           username=${ONT_WEB_USER}
+    Input User Password                      password=${ONT_WEB_PASS}
+    Submit Credentials
+    Welcome Page Should Be Open
+    Wait Until Keyword Succeeds              5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_IPOE_VLAN_ID_STATIC}
+    SL.Close All Browsers
+
+    [Teardown]    Run Keyword And Ignore Error     GW020BRC_FUNC_10_TC_02_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_10_TC_02
+    # GW020BRC_FUNC_10_TC_02

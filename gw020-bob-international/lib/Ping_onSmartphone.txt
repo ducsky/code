@@ -1,0 +1,115 @@
+*** Settings ***
+Library                                       AppiumLibrary   run_on_failure=AL.Capture Page Screenshot    WITH NAME    AL
+
+*** Variables ***
+
+*** Keywords ***
+Open Ping Application
+    [Arguments]                               ${appium_server}
+    ...                                       ${appium_port}
+    ...                                       ${platformName}
+    ...                                       ${platformVersion}
+    ...                                       ${deviceName}
+    AL.Open Application                       http://${appium_server}:${appium_port}/wd/hub
+    ...                                       platformName=${platformName}
+    ...                                       platformVersion=${platformVersion}
+    ...                                       deviceName=${deviceName}
+    ...                                       appPackage=com.studionivadev.pingtrace
+    ...                                       appActivity=com.studionivadev.pingtrace.ActivityMain
+    ...                                       unicodeKeyboard=${TRUE}
+    ...                                       newCommandTimeout=0
+
+Ping On Smartphone                            
+    [Arguments]                               ${destination_ping}=192.168.1.1
+    ...                                       ${number_packets}=4
+    ...                                       ${mtu_packets}=56
+    ...                                       ${interval_packets}=1.0
+    ...                                       ${timeout_packets}=3
+    
+    AL.Wait Until Page Contains Element       id=com.studionivadev.pingtrace:id/et_destination
+    ...                                       timeout=30
+    AL.Clear Text                             id=com.studionivadev.pingtrace:id/et_destination
+    AL.Wait Until Page Contains Element       id=com.studionivadev.pingtrace:id/et_destination
+    ...                                       timeout=30
+    Log To Console                            \nInput IP Ping Destination: ${destination_ping}
+    AL.Input Text                             id=com.studionivadev.pingtrace:id/et_destination       ${destination_ping}
+    AL.Wait Until Page Contains Element       id=com.studionivadev.pingtrace:id/et_count
+    ...                                       timeout=30
+    AL.Clear Text                             id=com.studionivadev.pingtrace:id/et_count
+    AL.Wait Until Page Contains Element       id=com.studionivadev.pingtrace:id/et_count
+    ...                                       timeout=30
+    Log To Console                            \nInput number of packets want to Ping: ${number_packets}
+    AL.Input Text                             id=com.studionivadev.pingtrace:id/et_count              ${number_packets}
+    AL.Wait Until Page Contains Element       id=com.studionivadev.pingtrace:id/et_mtu
+    ...                                       timeout=30
+    AL.Clear Text                             id=com.studionivadev.pingtrace:id/et_mtu
+    AL.Wait Until Page Contains Element       id=com.studionivadev.pingtrace:id/et_mtu
+    ...                                       timeout=30
+    Log To Console                            \nInput MTU of packets want to Ping: ${mtu_packets}
+    AL.Input Text                             id=com.studionivadev.pingtrace:id/et_mtu                 ${mtu_packets}
+    AL.Wait Until Page Contains Element       id=com.studionivadev.pingtrace:id/et_interval
+    ...                                       timeout=30
+    AL.Clear Text                             id=com.studionivadev.pingtrace:id/et_interval
+    AL.Wait Until Page Contains Element       id=com.studionivadev.pingtrace:id/et_interval
+    ...                                       timeout=30
+    Log To Console                            \nInput interval of packets want to Ping: ${interval_packets}
+    AL.Input Text                             id=com.studionivadev.pingtrace:id/et_interval            ${interval_packets}
+    AL.Wait Until Page Contains Element       id=com.studionivadev.pingtrace:id/et_timeout
+    ...                                       timeout=30
+    AL.Clear Text                             id=com.studionivadev.pingtrace:id/et_timeout
+    AL.Wait Until Page Contains Element       id=com.studionivadev.pingtrace:id/et_timeout
+    ...                                       timeout=30
+    AL.Clear Text                             id=com.studionivadev.pingtrace:id/et_timeout
+    AL.Wait Until Page Contains Element       id=com.studionivadev.pingtrace:id/et_timeout
+    ...                                       timeout=30
+    Log To Console                            \nInput timeout of packets want to Ping: ${timeout_packets}
+    AL.Input Text                             id=com.studionivadev.pingtrace:id/et_timeout              ${timeout_packets}
+    AL.Wait Until Page Contains Element       id=com.studionivadev.pingtrace:id/ib_start
+    ...                                       timeout=30
+    AL.Click Element                          id=com.studionivadev.pingtrace:id/ib_start
+    AL.Wait Until Page Contains Element       id=com.studionivadev.pingtrace:id/rb_details
+    ...                                       timeout=30
+    AL.Click Element                          id=com.studionivadev.pingtrace:id/rb_details
+    ${timeout}=                               Evaluate    ${interval_packets} * ${number_packets} + ${timeout_packets} + 10
+    Sleep                                     ${timeout}
+    # AL.Wait Until Page Contains               ping statistics    timeout=${timeout}     error=Can not Ping!!!
+
+    # AL.Wait Until Page Contains Element       xpath=/hierarchy/android.widget.FrameLayout/android.widget.LinearLayout/android.widget.FrameLayout/android.widget.LinearLayout/android.widget.FrameLayout/android.support.v4.widget.DrawerLayout/android.view.ViewGroup/android.widget.RelativeLayout/android.widget.FrameLayout[3]/android.widget.LinearLayout/android.widget.ListView/android.view.ViewGroup[18]/android.widget.TextView
+    # ${ping_notify}=     AL.Get Text           xpath=/hierarchy/android.widget.FrameLayout/android.widget.LinearLayout/android.widget.FrameLayout/android.widget.LinearLayout/android.widget.FrameLayout/android.support.v4.widget.DrawerLayout/android.view.ViewGroup/android.widget.RelativeLayout/android.widget.FrameLayout[3]/android.widget.LinearLayout/android.widget.ListView/android.view.ViewGroup[18]/android.widget.TextView
+    # Log To Console                            \n${ping_notify}
+    # AL.Wait Until Page Contains Element       xpath=/hierarchy/android.widget.FrameLayout/android.widget.LinearLayout/android.widget.FrameLayout/android.widget.LinearLayout/android.widget.FrameLayout/android.support.v4.widget.DrawerLayout/android.view.ViewGroup/android.widget.RelativeLayout/android.widget.FrameLayout[3]/android.widget.LinearLayout/android.widget.ListView/android.view.ViewGroup[19]/android.widget.TextView
+    # ${ping_result}=     AL.Get Text           xpath=/hierarchy/android.widget.FrameLayout/android.widget.LinearLayout/android.widget.FrameLayout/android.widget.LinearLayout/android.widget.FrameLayout/android.support.v4.widget.DrawerLayout/android.view.ViewGroup/android.widget.RelativeLayout/android.widget.FrameLayout[3]/android.widget.LinearLayout/android.widget.ListView/android.view.ViewGroup[19]/android.widget.TextView
+    # Log To Console                            \n${ping_result}
+
+    # # Should Contain                            ${ping_result}    , 0% packet loss]
+
+    # AL.Wait Until Page Contains Element       xpath=/hierarchy/android.widget.FrameLayout/android.widget.LinearLayout/android.widget.FrameLayout/android.widget.LinearLayout/android.widget.FrameLayout/android.support.v4.widget.DrawerLayout/android.view.ViewGroup/android.widget.RelativeLayout/android.widget.FrameLayout[3]/android.widget.LinearLayout/android.widget.ListView/android.view.ViewGroup[20]/android.widget.TextView
+    # ${ping_avg_time}=     AL.Get Text         xpath=/hierarchy/android.widget.FrameLayout/android.widget.LinearLayout/android.widget.FrameLayout/android.widget.LinearLayout/android.widget.FrameLayout/android.support.v4.widget.DrawerLayout/android.view.ViewGroup/android.widget.RelativeLayout/android.widget.FrameLayout[3]/android.widget.LinearLayout/android.widget.ListView/android.view.ViewGroup[20]/android.widget.TextView
+    # Log To Console                            \n${ping_avg_time}
+
+Ping On Smartphone Should Succeed
+    AL.Page Should Contain Text           0% packet loss
+
+Ping On Smartphone Should Failed
+    AL.Page Should Not Contain Text       0% packet loss    
+
+# *** Test cases ***
+# Ping on Smartphone
+    # Open Ping Application                           appium_server=10.84.3.208
+    # ...                                             appium_port=4723
+    # ...                                             platformName=Android
+    # ...                                             platformVersion=6.0
+    # ...                                             deviceName=025242011201473
+
+    # Ping on Smartphone                              destination_ping=youtube.com
+    # ...                                             number_packets=15
+    # ...                                             mtu_packets=32
+    # ...                                             interval_packets=2
+    # ...                                             timeout_packets=4
+    # Ping On Smartphone Should Succeed
+
+
+
+
+
+

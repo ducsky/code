@@ -1,0 +1,101 @@
+*** Settings ***
+Library                      SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library                      Collections        WITH NAME    CL
+Library                      String             WITH NAME    STR
+
+*** Variables ***
+${crontable_url}=            http://192.168.1.1/crontab.cmd
+${add_crontable_url}=        http://192.168.1.1/crontabadd.html
+
+*** Keywords ***
+Go To Cron Table Page
+    SL.Go To                              ${crontable_url}
+    SL.Wait Until Page Contains           Cron table     timeout=10    error=\nCrontab page dose not show up\n
+
+Go To Add Cron Table Page
+    SL.Go To                              ${add_crontable_url}
+    SL.Wait Until Page Contains           Add Cron table    timeout=10    error=\nCrontab page dose not show up\n
+
+Add Reboot Rule In Cron Table
+    [Arguments]                           ${date_time_array}
+    SL.Page Should Contain Element        xpath=//input[@name="rulename"]
+    SL.Input Text                         xpath=//input[@name="rulename"]    reboot
+    SL.Page Should Contain Element        xpath=//input[@name="rule"]
+    SL.Input Text                         xpath=//input[@name="rule"]    reboot
+    SL.Page Should Contain Element        xpath=//select[@name="dayweek"]
+    ${day}=                               Run Keyword If       "@{date_time_array}[${4}]" != "*"
+    ...                                   Convert To Integer    @{date_time_array}[${4}]
+    ...                                   ELSE                  Set Variable    *
+    ${month}=                             Run Keyword If       "@{date_time_array}[${3}]" != "*"
+    ...                                   Convert To Integer    @{date_time_array}[${3}]
+    ...                                   ELSE                  Set Variable    *
+    ${date}=                              Run Keyword If       "@{date_time_array}[${2}]" != "*"
+    ...                                   Convert To Integer    @{date_time_array}[${2}]
+    ...                                   ELSE                  Set Variable    *
+    ${hour}=                              Run Keyword If       "@{date_time_array}[${1}]" != "*"
+    ...                                   Convert To Integer    @{date_time_array}[${1}]
+    ...                                   ELSE                  Set Variable    *
+    ${minute}=                            Run Keyword If       "@{date_time_array}[${0}]" != "*"
+    ...                                   Convert To Integer    @{date_time_array}[${0}]
+    ...                                   ELSE                  Set Variable    *
+    @{date_time_array_int}=               Set Variable    ${minute}    ${hour}    ${date}    ${month}    ${day}
+    :FOR                                  ${i}    IN RANGE   8
+    \    ${value}=                        Convert To String    ${i}
+    \    Run Keyword If                   "@{date_time_array_int}[${4}]" == "${i}"
+    ...                                   SL.Select From List By Value    xpath=//select[@name="dayweek"]    ${value}
+    \    Run Keyword If                   "@{date_time_array_int}[${4}]" == "*"
+    ...                                   SL.Select From List By Value    xpath=//select[@name="dayweek"]    *
+    \    Exit For Loop If                 "@{date_time_array_int}[${4}]" == "${i}" or "@{date_time_array_int}[${4}]" == "*"
+    \    Run Keyword If                   ${i} == 7     Fail    \nInput day is invalid\n
+    SL.Page Should Contain Element        xpath=//select[@name="month"]
+    :FOR                                  ${i}   IN RANGE    1    14
+    \    ${value}=                        Convert To String    ${i}
+    \    Run Keyword If                   "@{date_time_array_int}[${3}]" == "${i}"
+    ...                                   SL.Select From List By Value     xpath=//select[@name="month"]    ${value}
+    \    Run Keyword If                   "@{date_time_array_int}[${3}]" == "*"
+    ...                                   SL.Select From List By Value     xpath=//select[@name="month"]    *
+    \    Exit For Loop If                 "@{date_time_array_int}[${3}]" == "${i}" or "@{date_time_array_int}[${3}]" == "*"
+    \    Run Keyword If                   ${i} == 13    Fail    \nInput month is invalid\n
+    SL.Page Should Contain Element        xpath=//select[@name="daymonth"]
+    :FOR                                  ${i}   IN RANGE    1    33
+    \    ${value}=                        Convert To String    ${i}
+    \    Run Keyword If                   "@{date_time_array_int}[${2}]" == "${i}"
+    ...                                   SL.Select From List By Value     xpath=//select[@name="daymonth"]    ${value}
+    \    Run Keyword If                   "@{date_time_array_int}[${2}]" == "*"
+    ...                                   SL.Select From List By Value     xpath=//select[@name="daymonth"]    *
+    \    Exit For Loop If                 "@{date_time_array_int}[${2}]" == "${i}" or "@{date_time_array_int}[${2}]" == "*"
+    \    Run Keyword If                   ${i} == 32    Fail    \nInput Day is invalid\n
+    SL.Page Should Contain Element        xpath=//select[@name="hour"]
+    :FOR                                  ${i}   IN RANGE    0    25
+    \    ${value}=                        Convert To String    ${i}
+    \    Run Keyword If                   "@{date_time_array_int}[${1}]" == "${i}"
+    ...                                   SL.Select From List By Value     xpath=//select[@name="hour"]    ${value}
+    \    Run Keyword If                   "@{date_time_array_int}[${1}]" == "*"
+    ...                                   SL.Select From List By Value     xpath=//select[@name="hour"]    *
+    \    Exit For Loop If                 "@{date_time_array_int}[${1}]" == "${i}" or "@{date_time_array_int}[${1}]" == "*"
+    \    Run Keyword If                   ${i} == 24    Fail    \nInput Hour is invalid\n
+    SL.Page Should Contain Element        xpath=//select[@name="minutes"]
+    :FOR                                  ${i}   IN RANGE    0    61
+    \    ${value}=                        Convert To String    ${i}
+    \    Run Keyword If                   "@{date_time_array_int}[${0}]" == "${i}"
+    ...                                   SL.Select From List By Value     xpath=//select[@name="minutes"]    ${value}
+    \    Run Keyword If                   "@{date_time_array_int}[${0}]" == "*"
+    ...                                   SL.Select From List By Value     xpath=//select[@name="minutes"]    *
+    \    Exit For Loop If                 "@{date_time_array_int}[${0}]" == "${i}" or "@{date_time_array_int}[${0}]" == "*"
+    \    Run Keyword If                   ${i} == 60    Fail    \nInput minute is invalid\n
+    SL.Page Should Contain Element        xpath=//input[@value="Apply/Save"]
+    SL.Click Element                      xpath=//input[@value="Apply/Save"]
+    #SL.Wait Until Page Contains Element   xpath=//td[contains(text(),"reboot")]    timeout=30
+
+Remove Reboot rule In Cron Table
+    SL.Page Should Contain Element        xpath=//input[@value="reboot"]
+    SL.Click Element                      xpath=//input[@value="reboot"]
+    SL.Page Should Contain Element        xpath=//input[@value="Remove"]
+    SL.Click Element                      xpath=//input[@value="Remove"]
+
+Filter Time
+    [Arguments]                          ${date_time_crontab_tmp}
+    @{date_time_array}=                  STR.Get Regexp Matches    ${date_time_crontab_tmp}    [0-9\\*]+
+    ${length}=                           Get Length    ${date_time_array}
+    Run Keyword If                       ${length} != 5   Fail    \nParameter input is wrong \n
+    [Return]                             @{date_time_array}

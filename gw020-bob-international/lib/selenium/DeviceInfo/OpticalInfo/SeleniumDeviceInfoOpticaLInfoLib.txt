@@ -1,0 +1,55 @@
+*** Settings ***
+Library                          SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library                          String    WITH NAME    STR
+
+*** Variables ***
+${optical_info_page}             http://192.168.1.1/opticalinf.cmd?
+
+*** Keywords ***
+Open Optical Info Page
+    [Documentation]                   Input another url for operator user, else use default.
+
+    [Arguments]                       ${url}=${optical_info_page}
+
+    SL.Go To                          ${url}
+    SL.Wait Until Page Contains       Optical Info
+    ...                               timeout=10s
+    ...                               error=\nDevice Info Wan Page Not Found
+
+Get Serial Number
+    [Documentation]                   Get Serial Number
+    ...                               Author: ThoanNV
+    ...                               20/11/2018
+    SL.Element Should Be Visible      xpath=//table/tbody/tr[1]/td[2]
+    ${serial}=                        SL.Get Text     xpath=//table/tbody/tr[1]/td[2]
+    ${serial}=                        STR.Convert To Uppercase    ${serial}
+    ${serial}=                        STR.Strip String    string=${serial}
+    [return]                          ${serial}
+
+Get Optics Module Temperature
+    [Documentation]                   Get Optics Module Temperature
+    ...                               Author: BinhNT5
+    ...                               27/7/2018
+    SL.Element Should Be Visible      xpath=//table/tbody/tr[4]/td[2]
+    ${optical_temperature}=           SL.Get Text     xpath=//table/tbody/tr[4]/td[2]
+    ${optical_temperature}=           STR.Strip String    string=${optical_temperature}
+    [return]                          ${optical_temperature}
+
+Get Rx Optics Signal Level
+    [Documentation]                   Get Rx Optics Signal Level
+    ...                               Author: ThoanNV
+    ...                               20/11/2018
+    SL.Element Should Be Visible      xpath=//table/tbody/tr[5]/td[2]
+    ${rx}=                            SL.Get Text     xpath=//table/tbody/tr[5]/td[2]
+    ${rx}=                            STR.Strip String    string=${rx}
+    [return]                          ${rx}
+
+Get Tx Optics Signal Level
+    [Documentation]                   Get Tx Optics Signal Level
+    ...                               Author: ThoanNV
+    ...                               20/11/2018
+    SL.Element Should Be Visible      xpath=//table/tbody/tr[6]/td[2]
+    ${tx}=                            SL.Get Text     xpath=//table/tbody/tr[6]/td[2]
+    ${tx}=                            STR.Strip String    string=${tx}
+    [return]                          ${tx}
+

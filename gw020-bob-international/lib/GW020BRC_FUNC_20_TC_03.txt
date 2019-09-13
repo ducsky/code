@@ -1,0 +1,112 @@
+*** Settings ***
+Library                                    SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library                                    SSHLibrary     WITH NAME    SSHL
+Resource                                   selenium/Login/SeleniumLoginLib.txt
+Resource                                   selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource                                   selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource                                   selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessBasicLib.txt
+Resource                                   selenium/AdvancedFeatures/InterfaceGrouping/SeleniumAdvancedFeaturesInterfaceGrouping.txt
+Resource                                   ssh/SshLib.txt
+Resource                                   Watching_Youtube_onPC.txt
+Resource                                   variables/AllVariables.txt
+Resource                                   GW020BRC_FUNC_20_TC_01.txt
+
+*** Variables ***
+${IP_BRIDGE_CONTAIN}                         10.84.14.
+
+*** Keywords ***
+GW020BRC_FUNC_20_TC_03_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+    ###Close SSH
+    SSHL.Close All Connections
+
+GW020BRC_FUNC_20_TC_03
+#####PC1 connect to ONT via LAN 1
+#####PC2 connect to ONT via LAN 2
+
+### Need 2 PCs connect to 1 ONT to do this case
+
+    [Arguments]                                    ${CLIENT_IP}
+
+    Log To Console                                 MTU WAN BRIDGE
+    SL.Set Selenium Speed                          0.7
+    Set Test Message                               *HTML* <b>GW020BRC_FUNC_20_TC_03</b>  
+
+    ####STEP 1: From PC1 login to WEBGUI and Create PPPoE WAN
+    Log To Console                                 \nStep 1.1: Login to WEBGUI
+    Login To Browser                               remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                            url=${LOGIN_URL}
+    ...                                            username=${ONT_WEB_USER}
+    ...                                            password=${ONT_WEB_PASS}
+    ...                                            browser=${BROWSER}
+    Welcome Page Should Be Open
+
+    #Step 1.3: Create Bridge WAN
+    Log To Console                                 \nStep 1.3: Create Bridge WAN
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+    Add New Wan Service                            wan_service_type=Bridging
+    Select Bridging Wan Service                    priority=${CORRECT_BRIDGE_VLAN_PRIORITY}
+    ...                                            vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+
+    ############Step 1.4: Verify Bridge WAN should success on web
+    Log To Console                                \nStep 1.4: Verify Bridging WAN should success on web
+    Wait Until Keyword Succeeds                   5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+    ${wan_interface}=                             Get Wan Interface     vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+    Set Suite Variable                            ${wan_interface}
+
+    Open Connection And Login To Remote Machine    ssh_server_ip=${CLIENT_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+    ${bridge_interface}=                           SSHL.Execute Command    ifconfig | grep -B1 "inet addr:192.168" | awk '$1!="inet" && $1!="--" {print $1}'
+
+    ###STEP 2.1:InterfaceGrouping to LAN 2
+    Log To Console                                \nStep 2.1: InterfaceGrouping to LAN 2\n
+    Open Interface Group Page                     interface_grouping_config_url=${INTERFACE_GROUPING_CONFIG_URL}
+    Add Interface Group_TC_20_03                  group_name=mtu_wan_bridge
+    ...                                           wan_name=${wan_interface}
+    ...                                           lan_interface=2
+    Sleep                                         5s
+
+    ###STEP 2.2:Check IP on PC2 and Telnet to ONT, check MTU and Ping: “ping ${TO_IPOE_GATEWAY} -I enx000ec6d21dbc -c 10 -M do -s 1400” from PC2
+    Log To Console                                \nStep 2.2: Check IP on PC2\n
+    Wait Until Keyword Succeeds                    5x    1s     Renew IP Address    network_interface=${bridge_interface}    ip_adrress_contain=${IP_BRIDGE_CONTAIN}
+    ###
+    SSHL.Write                                     ifconfig ${bridge_interface}
+    ${check_output_ifconfig}=                      SSHL.Read    delay=1s
+    Log To Console                                 CMD Output: ${check_output_ifconfig}
+    
+    ### Check MTU
+    Should Contain                                 ${check_output_ifconfig}    MTU:1500
+
+    ##Step 2.3: Verify Ping: “ping ${TO_IPOE_GATEWAY}” should success
+    Wait Until Keyword Succeeds                    12x    5s    Ping Should Succeed_TC_20_01    ping_address=${TO_IPOE_GATEWAY}
+    ...                                            nic=${bridge_interface}
+    ...                                            mtu_size=1400
+
+    SL.Close All Browsers
+    SSHL.Close All Connections
+
+    [Teardown]    Run Keyword And Ignore Error     GW020BRC_FUNC_20_TC_03_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_20_TC_03
+    # GW020BRC_FUNC_20_TC_03         CLIENT_IP=10.2.14.191

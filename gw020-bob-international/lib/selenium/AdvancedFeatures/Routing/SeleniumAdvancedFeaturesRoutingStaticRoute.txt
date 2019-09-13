@@ -1,0 +1,83 @@
+*** Settings ***
+Library                                    SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+
+*** Variables ***
+${static_route_page}=                      http://192.168.1.1/rtroutecfg.cmd?action=viewcfg
+
+*** Keywords ***
+Open Static Route Page
+    [Arguments]                            ${static_route_page}=http://192.168.1.1/rtroutecfg.cmd?action=viewcfg
+    SL.Go To                               ${static_route_page}
+    SL.Wait Until Page Contains            Routing -- Static Route
+    ...                                    timeout=60s
+    ...                                    error=\nStatic Route Page did not show up
+    SL.Page Should Contain                 Routing -- Static Route
+
+
+Create Static Route
+    [Arguments]                            ${destination_ip}    ${interface}      ${gateway_ip}
+    SL.Page Should Contain Element         xpath=//input[@value="Add"]
+    SL.Click Element                       xpath=//input[@value="Add"]
+    SL.Wait Until Page Contains            Routing -- Static Route Add         timeout=60s
+    SL.Page Should Contain Element         xpath=//input[@name="dstAddr"]
+    SL.Input Text                          xpath=//input[@name="dstAddr"]      ${destination_ip}
+    SL.Page Should Contain Element         xpath=//select[@name="dstWanIf"]
+    SL.Select From List By Value           xpath=//select[@name="dstWanIf"]     ${interface}
+
+    SL.Page Should Contain Element         xpath=//input[@name="dstGtwy"]
+    SL.Input Text                          xpath=//input[@name="dstGtwy"]      ${gateway_ip}
+
+    SL.Click Element                       xpath=//input[@value="Apply/Save"]
+    SL.Wait Until Page Contains            ${destination_ip}                    timeout=60s
+
+Get Column Index
+    [Documentation]             Get column index base on column name.
+    ...                         Input:
+    ...                         1. column_name
+    ...                         Return:
+    ...                         1. Column index if found, else return 'None'
+
+    [Arguments]                 ${column_name}
+
+    ${index}=                   Set Variable     None
+    ${column_count}=	        Run Keyword    Get Element Count     xpath=//table[@class="wholetable"]/tbody/tr[1]/td
+    :FOR     ${i}     IN RANGE      1     ${column_count}+1
+    \        ${element_is_visible}=    Run Keyword And Return Status       SL.Element Should Be Visible    xpath=//table[@class="wholetable"]/tbody/tr[1]/td[${i}]
+    \        Exit For Loop If    '${element_is_visible}' == 'False'
+    \        ${column_name_tmp}=       SL.Get Text    xpath=//table[@class="wholetable"]/tbody/tr[1]/td[${i}]
+    \        ${index}=          Set Variable If    '${column_name_tmp}' == '${column_name}'     ${i}
+    \        Exit For Loop If   '${column_name_tmp}' == '${column_name}'
+    [Return]                    ${index}
+
+###
+Get Row Index
+    [Documentation]             Get row index base on column name and column value.
+    ...                         Input:
+    ...                         1. column_name
+    ...                         2. column_value
+    ...                         Return:
+    ...                         1. Row index if found, else return 'None'
+
+    [Arguments]                 ${column_name}   ${column_value}
+
+    ${index}=                   Set Variable     None
+    ${row_count}=	Run Keyword    Get Element Count     xpath=//table[@class="wholetable"]/tbody/tr
+    ${column_index_tmp}=        SeleniumAdvancedFeaturesRoutingStaticRoute.Get Column Index            ${column_name}
+    :FOR    ${row_i}     IN RANGE   2     ${row_count}+1
+    \       ${element_is_visible}=    Run Keyword And Return Status       SL.Element Should Be Visible    xpath=//table[@class="wholetable"]/tbody/tr[${row_i}]
+    \       Exit For Loop If    '${element_is_visible}' == 'False'
+    \       ${column_value_tmp}=     SL.Get Text     xpath=//table[@class="wholetable"]/tbody/tr[${row_i}]/td[${column_index_tmp}]
+    \       ${index}=           Set Variable If     '${column_value_tmp}' == '${column_value}'    ${row_i}
+    \       Exit For Loop If    '${column_value_tmp}' == '${column_value}'
+    [Return]                    ${index}
+
+Remove Static Route
+    [Arguments]                              ${index}
+    SL.Select Checkbox                       xpath=//table/tbody/tr[${index}]/td/input[@name="rml"]
+    Sleep                                    2s
+    SL.Checkbox Should Be Selected           xpath=//table/tbody/tr[${index}]/td/input[@name="rml"]
+    SL.Page Should Contain Element           xpath=//input[@value="Remove"]
+    SL.Click Element                         xpath=//input[@value="Remove"]
+    SL.Wait Until Page Contains              Routing -- Static Route
+    ...                                      timeout=60s
+

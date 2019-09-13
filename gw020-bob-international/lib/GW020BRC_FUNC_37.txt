@@ -1,0 +1,219 @@
+*** Settings ***
+Library              SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library              AppiumLibrary   run_on_failure=AL.Capture Page Screenshot    WITH NAME      AL
+Library              SSHLibrary       WITH NAME      SSHL
+Resource             selenium/Login/SeleniumLoginLib.txt
+Resource             selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource             selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource             selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessBasicLib.txt
+Resource             selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessSecurityLib.txt
+Resource             selenium/AdvancedFeatures/InterfaceGrouping/SeleniumAdvancedFeaturesInterfaceGrouping.txt
+Resource             selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource             appium/Settings/AppiumSettingsWifiLib.txt
+Resource             ssh/SshLib.txt
+Resource             variables/AllVariables.txt
+Resource             Watching_Youtube_onPC.txt
+Resource             Ping_onSmartphone.txt
+
+*** Variables ***
+${LOGIN_BUTTON}                                xpath=//button[@class="loginBtn"]
+
+*** Keywords ***
+GW020BRC_FUNC_37_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+    AL.Close All Applications
+
+InterfaceGrouping_GW020BRC_FUNC_37
+    [Documentation]                          Interface Grouping to ONT's LAN Interfaces
+    [Arguments]                              ${wan_interface}
+
+    ######InterfaceGrouping to LAN ${LAN_INTERFACE_ONT} and ${WIFI_SSID_4}
+    Log To Console                           \nLogin to WEBGUI
+    Sleep                                    5s
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Log To Console                          \nInterfaceGrouping to LAN ${LAN_INTERFACE_ONT} and SSID ${WIFI_SSID_4}
+    Open Interface Group Page                interface_grouping_config_url=${INTERFACE_GROUPING_CONFIG_URL}
+    Sleep                                    10s
+    Log To Console                          \nWaiting in 10s...
+    Add Interface Group                      group_name=${INTERFACE_GROUP_NAME}
+    ...                                      wan_name=${wan_interface}
+    ...                                      lan_interface=${LAN_INTERFACE_ONT}
+    ...                                      name_ssid=${WIFI_SSID_4}
+
+    # #############Verify UE devices get IP address in BRIDGE_WAN_SUBNET
+    Log To Console                          \nVerify UE devices get IP address in subnet
+    Open Wifi Picker Activity               remote_server=${APPIUM_REMOTE_SERVER}
+    ...                                     remote_port=${APPIUM_REMOTE_PORT}
+    ...                                     platform=${PLATFORM_NAME}
+    ...                                     version=${PLATFORM_VERSION}
+    ...                                     ue_device_name=${DEVICE_NAME}
+    Turn On Wifi
+    Forget Saved Network And Add Network        wifi_ssid=${WIFI_SSID_4}       wifi_security=None
+    ${ip}=       Get Granted Ip Address
+    Should Contain                          ${ip}           ${BRIDGE_WAN_SUBNET}
+    AL.Close Application
+
+GW020BRC_FUNC_37
+    SL.Set Selenium Speed                    0.7
+    Set Test Message                         *HTML* <b>GW020BRC_FUNC_37</b>
+    Login with correct password
+
+    ### Enable Wireless
+    Open Wireless Configure Page             wireless_configure_url=${WIRELESS_CONFIGURE_URL}
+    Enable Wireless
+    Log To Console                          \nChange WiFi Name for Main SSID to '${WIFI_SSID_1}'
+    Name SSID                                ssid=${WIFI_SSID_1}
+    Log To Console                           \nRename for SSID 2 and SSID 4...
+    Enable Virtual Access Point              ${WIFI_SSID_2}    ${WIFI_SSID_4}
+
+
+    ### Enable function WMF for ${WIFI_SSID_4}
+    Open Wireless Configure Page             wireless_configure_url=${WIRELESS_CONFIGURE_URL}
+    Enable WMF For SSID                      ssid=${WIFI_SSID_4}
+    Verify Enable WMF for SSID
+
+    ### Select Security for SSIDs
+    Open Wireless Security Page              wireless_security_url=http://192.168.1.1/wlsec.html
+    Log To Console                           \nSelect Security for SSID ${WIFI_SSID_1}
+    Select SSID                              ${WIFI_SSID_1}
+    Select Network Authentication            mode=WPA2 -PSK
+    Configure WPA2-PSK Mode                  password=${WIFI_PASS}
+    Sleep                                    10s
+    Log To Console                           \nSelect Security for SSID ${WIFI_SSID_2}
+    Select SSID                              ${WIFI_SSID_2}
+    Select Network Authentication            mode=Mixed WPA2/WPA -PSK
+    Configure Mixed WPA2/WPA-PSK Mode        password=${WIFI_PASS}
+    Sleep                                    10s
+    Log To Console                           \nSelect Security for SSID ${WIFI_SSID_4}
+    Select SSID                              ${WIFI_SSID_4}
+    Select Network Authentication            mode=Open
+
+    ### Create WAN mode PPPoE
+    Open Network Settings Wan Page          url=${NETWORK_SETTINGS_WAN_URL}
+    Log To Console                          \nStep 2.1: Create WAN mode PPPoE
+
+    Add New Wan Service                     wan_service_type=PPPoE
+    Select PPPoE Wan Service                network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                                     priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                                     vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    ...                                     ppp_username=${CORRECT_PPP_USERNAME}
+    ...                                     ppp_password=${CORRECT_PPP_PASSWORD}
+    ...                                     routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                     wan_interface=${PPPOE_WAN_INTERFACE}
+    ...                                     ppp_mtu_size=${PPPOE_MTU_SIZE}
+    Apply Wan Settings
+    Log To Console                          \nVerify WAN PPPoE should success on web
+    Wait Until Keyword Succeeds             5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+    ### Create WAN mode Bridge
+    Log To Console                          \nStep 2.2: Create WAN mode Bridge
+    Open Network Settings Wan Page          url=${NETWORK_SETTINGS_WAN_URL}
+    Add New Wan Service                     wan_service_type=Bridging
+    Select Bridging Wan Service             priority=${CORRECT_BRIDGE_VLAN_PRIORITY}
+    ...                                     vlan_id=${CORRECT_BRIDGE_VLAN_ID}
+
+    Log To Console                          \nVerify Bridging WAN should success on web
+    Wait Until Keyword Succeeds             5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_BRIDGE_VLAN_ID}
+    ${wan_interface}=                       Get Wan Interface     vlan_id=${CORRECT_BRIDGE_VLAN_ID}
+    Set Suite Variable                      ${wan_interface}
+    Log To Console                          \n InterfaceGrouping to LAN ${LAN_INTERFACE_ONT} and SSID: ${WIFI_SSID_4}
+    InterfaceGrouping_GW020BRC_FUNC_37       wan_interface=${wan_interface}
+
+    ### Verify Ping to 8.8.8.8 and Watching Youtube on PC
+    Log To Console                                 \nVerify Ping to 8.8.8.8 should success
+
+    Open Connection And Login To Remote Machine    ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+    ${lan_interface}=                              SSHL.Execute Command    ifconfig | grep -B1 "inet addr:192.168" | awk '$1!="inet" && $1!="--" {print $1}'
+    Wait Until Keyword Succeeds                    5x    1s    Ping Should Succeed    ping_address=${TO_GOOGLE}    network_interface=${lan_interface}
+
+    Log To Console                                 \nWatching Youtube on PC...
+    Watching Youtube on PC                         youtube_url=https://youtu.be/Llw9Q6akRo4      youtube_duration=${YOUTUBE_DURATION_PC}
+    SL.Close All Browsers
+
+    ######  Verify UE device connect to wifi 1
+    Log To Console                          \nStep 3: Verify UE device connected to WiFi ${WIFI_SSID_1}
+    Open Wifi Picker Activity               remote_server=${APPIUM_REMOTE_SERVER}
+    ...                                     remote_port=${APPIUM_REMOTE_PORT}
+    ...                                     platform=${PLATFORM_NAME}
+    ...                                     version=${PLATFORM_VERSION}
+    ...                                     ue_device_name=${DEVICE_NAME}
+    Turn On Wifi
+    Forget Saved Network And Add Network    wifi_ssid=${WIFI_SSID_1}    wifi_security=WPA/WPA2 PSK    wifi_password=${WIFI_PASS}
+    ${ip}=       Get Granted Ip Address
+    Should Contain                          ${ip}           ${ONT_SUBNET}
+    AL.Close Application
+
+    #Ping on Smartphone
+    Open Ping Application                           appium_server=${APPIUM_REMOTE_SERVER}
+    ...                                             appium_port=${APPIUM_REMOTE_PORT}
+    ...                                             platformName=Android
+    ...                                             platformVersion=6.0
+    ...                                             deviceName=${DEVICE_NAME}
+
+    Ping On Smartphone                              destination_ping=youtube.com
+    ...                                             number_packets=4
+    ...                                             mtu_packets=56
+    ...                                             interval_packets=1.0
+    ...                                             timeout_packets=3
+    Ping On Smartphone Should Succeed
+    AL.Close Application
+
+    ######  Verify UE device connect to wifi 2
+    Log To Console                          \nStep 4: Verify UE device connected to WiFi ${WIFI_SSID_2}
+    Open Wifi Picker Activity               remote_server=${APPIUM_REMOTE_SERVER}
+    ...                                     remote_port=${APPIUM_REMOTE_PORT}
+    ...                                     platform=${PLATFORM_NAME}
+    ...                                     version=${PLATFORM_VERSION}
+    ...                                     ue_device_name=${DEVICE_NAME}
+    Turn On Wifi
+    Forget Saved Network And Add Network    wifi_ssid=${WIFI_SSID_2}    wifi_security=WPA/WPA2 PSK    wifi_password=${WIFI_PASS}
+    ${ip}=       Get Granted Ip Address
+    Should Contain                          ${ip}           ${ONT_SUBNET}
+    AL.Close Application
+
+    #Ping on Smartphone
+    Open Ping Application                           appium_server=${APPIUM_REMOTE_SERVER}
+    ...                                             appium_port=${APPIUM_REMOTE_PORT}
+    ...                                             platformName=Android
+    ...                                             platformVersion=6.0
+    ...                                             deviceName=${DEVICE_NAME}
+
+    Ping On Smartphone                              destination_ping=youtube.com
+    ...                                             number_packets=4
+    ...                                             mtu_packets=56
+    ...                                             interval_packets=1.0
+    ...                                             timeout_packets=3
+    Ping On Smartphone Should Succeed
+    AL.Close Application
+
+    [Teardown]        Run Keyword And Ignore Error    GW020BRC_FUNC_37_Teardown
+
+# *** Test Cases ***
+# GW020BRC_FUNC_37
+    # GW020BRC_FUNC_37

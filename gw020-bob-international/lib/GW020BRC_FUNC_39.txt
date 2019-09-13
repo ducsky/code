@@ -1,0 +1,94 @@
+*** Settings ***
+Library     SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library     SSHLibrary    WITH NAME    SSHL
+Resource    selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource    selenium/AdvancedFeatures/DNS/SeleniumAdvancedFeaturesDNSDynamicDNSLib.txt
+Resource    selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource    selenium/Login/SeleniumLoginLib.txt
+Resource    variables/AllVariables.txt
+Resource    selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource    ssh/SshLib.txt
+
+*** Variables ***
+${LOGIN_BUTTON}                              xpath=//button[@class="loginBtn"]
+
+*** Keywords ***
+GW020BRC_FUNC_39_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+    ###Close SSH
+    SSHL.Close All Connections
+
+GW020BRC_FUNC_39
+    [Arguments]                              ${ddns_hostname}    ${noipUsername}    ${noipPassword}
+    SL.Set Selenium Speed                    0.7
+    Set Test Message                         *HTML* <b>GW020BRC_FUNC_39</b>
+    Log To Console                           \nLogin WEB GUI ONT.
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+
+    Log To Console                           \nCreate WAN PPPoE.
+    Open Network Settings Wan Page           url=${NETWORK_SETTINGS_WAN_URL}
+    Create New Wan PPPoE                     url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                      network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                                      priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                                      vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    ...                                      ppp_username=${CORRECT_PPP_USERNAME}
+    ...                                      ppp_password=${CORRECT_PPP_PASSWORD}
+    ...                                      routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                      wan_interface=${PPPOE_WAN_INTERFACE}
+    ...                                      ppp_mtu_size=${PPPOE_MTU_SIZE}
+
+    Log To Console                           \nCreate DDNS NO-IP.
+    Wait Until Keyword Succeeds              5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    ${wan_interface}=                        Get Wan Interface    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    ${wan_ip_address}=                       Get Wan Ip Address    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    Go To DDNS Config Page
+    # noip, dyndns or tzo
+    Add Config DDNS                          ddns_mode=noip
+    ...                                      ddns_hostname=${ddns_hostname}
+    ...                                      ddns_interface=${wan_interface}
+    ...                                      ddns_username=${noipUsername}
+    ...                                      ddns_password=${noipPassword}
+
+    Log To Console                           \nCheck ket qua.
+    # Can sleep de dong bo ban ghi DNS giua Domain va IP WAN
+    Sleep                                    60
+    ##
+    Open Connection And Login To Remote Machine    ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+    #Check DNS nslookup
+    ${ip_dns_nslookup}=                      SSHL.Execute Command    nslookup ${ddns_hostname}
+    Should Contain                           ${ip_dns_nslookup}    ${wan_ip_address}
+
+    [Teardown]                               Run Keyword And Ignore Error     GW020BRC_FUNC_39_Teardown
+
+# *** Test Cases ***
+# GW020BRC_FUNC_39
+    # GW020BRC_FUNC_39
+    # ...    ddns_hostname=congaxxx.ddns.net
+    # ...    noipUsername=conga3chan@gmail.com
+    # ...    noipPassword=$1#2@3

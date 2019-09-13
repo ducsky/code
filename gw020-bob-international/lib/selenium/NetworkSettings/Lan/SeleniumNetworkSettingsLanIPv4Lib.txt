@@ -1,0 +1,68 @@
+*** Settings ***
+Library                      SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+
+*** Variables ***
+
+*** Keywords ***
+Config IPv4 DHCP
+    [Arguments]                              ${ip_address}    ${subnet_mask}    ${start_ip_address}    ${end_ip_address}    ${lan_ipv4_config_url}=http://192.168.1.1/lancfg2.html
+    log                                      Setup ipv4 dhcp    console=true
+    SL.Go To                                 ${lan_ipv4_config_url}
+    SL.Wait Until Page Contains              LAN -- IPv4 Setup    timeout=10s    error=\n Ipv4 Setup page did not show up\n
+
+    # Config ip address for ipv4 setting
+    # Clear Element Text                       xpath=//input[@name="ethIpAddress"]
+    # Alert Should Be Present
+    # SL.Input Text                            xpath=//input[@name="ethIpAddress"]    ${ip_address}
+
+    Log To Console                           Config ip : ${ip_address} for ONT device
+    SL.Wait Until Element Is Visible         xpath=//input[@name="ethIpAddress"]
+    SL.Execute Javascript                    document.getElementsByName('ethIpAddress')[0].value = '${ip_address}' 
+
+    Log To Console                           Config ip : ${ip_address} for ONT device
+    SL.Wait Until Element Is Visible         xpath=//input[@name="ethSubnetMask"]
+    SL.Execute Javascript                    document.getElementsByName('ethSubnetMask')[0].value = '${subnet_mask}'
+
+    Log To Console                           Config start ip address: ${start_ip_address}
+    SL.Wait Until Element Is Visible         xpath=//input[@name="dhcpEthStart"]
+    SL.Input Text                            xpath=//input[@name="dhcpEthStart"]    ${start_ip_address}
+
+    Log To Console                           Config end ip address: ${end_ip_address}
+    SL.Wait Until Element Is Visible         xpath=//input[@name="dhcpEthEnd"]
+    SL.Input Text                            xpath=//input[@name="dhcpEthEnd"]    ${end_ip_address}
+
+    SL.Wait Until Element Is Visible         xpath=//input[@value="Apply/Save"]
+    # SL.Click Element                         xpath=//input[@value="Apply/Save"]
+    SL.Execute Javascript                    document.querySelector("input[value='Apply/Save']").click();
+
+Popup Lan Ip Address Is Special Should Be Visible
+    [Documentation]                     Handle popup LAN IP address is special
+    [Arguments]                         ${lan_ip_address}
+
+    ${popup_message}=                   SL.Handle Alert    timeout=10s
+    Log To Console                      Popup message: ${popup_message}
+    Should Contain                      ${popup_message}     Address "${lan_ip_address}" is special IP address.
+
+Popup Lan Subnet Mask Is Special Should Be Visible
+    [Documentation]                     Handle popup LAN subnet mask is special
+    [Arguments]                         ${lan_subnet_mask}
+
+    ${popup_message}=                   SL.Handle Alert    timeout=10s
+    Log To Console                      Popup message: ${popup_message}
+    Should Contain                      ${popup_message}     Address "${lan_subnet_mask}" is invalid IP address.
+    SL.Handle Alert                     timeout=10s
+
+Popup Start IP Address Special Should Be Visible
+    [Documentation]                     Handle popup Start IP Address is special
+
+    ${popup_message}=                   SL.Handle Alert    timeout=10s
+    Log To Console                      Popup message: ${popup_message}
+    Should Contain                      ${popup_message}     Address DHCP is special IP address
+
+
+Popup End IP Address Special Should Be Visible
+    [Documentation]                     Handle popup End IP Address is special
+
+    ${popup_message}=                   SL.Handle Alert    timeout=10s
+    Log To Console                      Popup message: ${popup_message}
+    Should Contain                      ${popup_message}     Address DHCP is special IP address

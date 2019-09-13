@@ -1,0 +1,40 @@
+*** Settings ***
+# Library    libpy/module1.py
+Library    libpy/process_string.py   WITH NAME    PS 
+Library    OperatingSystem    WITH NAME    OS
+Library    SSHLibrary    WITH NAME    SSHL
+Resource                     variables/AllVariables.txt    
+*** Variables ***
+${SERVER}    10.2.14.192
+${USER}    ubuntu
+${PASSWORD}    123456
+${DIR_FOLDER}   performance/
+${DIR_SRC}   performance/lib/pynfc/
+*** Keywords ***
+brc_nfc_01
+    ${time_sys}=    PS.Get Time System
+    Log To Console    brc_nfc_01_${time_sys}    
+    # OS.Run    mkdir -p ./result_nfc/05092019_143221brc_nfc_01/
+    OS.Run    mkdir -p ./result_nfc/
+    OS.Run    mkdir -p ./result_nfc/brc_nfc_01_${time_sys}/
+    OS.Run    tar -cvf pynfc.tar ./lib/pynfc
+    SSHL.Open Connection    ${SERVER}    timeout=36000
+	SSHL.Login    ${USER}    ${PASSWORD}
+	SSHL.Execute Command    rm -rf ${DIR_FOLDER}
+	SSHL.Execute Command    mkdir ${DIR_FOLDER}     
+	SSHL.Put File    pynfc.tar   ${DIR_FOLDER}
+	${out_put}=    SSHL.Execute Command    tar -xvf ${DIR_FOLDER}pynfc.tar -C ${DIR_FOLDER}    
+	Log To Console    \n${out_put}	
+	Log To Console    \nRun file python
+	${out_put}=    SSHL.Execute Command    python3.5 ${DIR_SRC}brc_nfc_01.py brc_nfc_01_${time_sys} ${TIME_TEST_PERFORMANCE} 
+	SSHL.Execute Command    tar -cvf ${DIR_FOLDER}brc_nfc_01_${time_sys}.tar ${DIR_FOLDER}brc_nfc_01_${time_sys}/*
+	SSHL.Get File    ${DIR_FOLDER}brc_nfc_01_${time_sys}.tar    ./result_nfc/brc_nfc_01_${time_sys}/
+	SSHL.Get File    ${DIR_FOLDER}brc_nfc_01_${time_sys}/brc_nfc_01_${time_sys}_final.txt    ./result_nfc/brc_nfc_01_${time_sys}/
+	${out_put}=    OS.Run    tail ./result_nfc/brc_nfc_01_${time_sys}/brc_nfc_01_${time_sys}_final.txt
+    Should Be Equal    '${out_put}'    'OK'  
+    SSHL.Close Connection
+# *** Test Cases ***
+# test
+    # brc_nfc_01
+
+

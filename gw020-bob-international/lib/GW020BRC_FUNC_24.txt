@@ -1,0 +1,127 @@
+*** Settings ***
+Library     SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library     SSHLibrary    WITH NAME    SSHL
+Resource    selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource    selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource    selenium/Login/SeleniumLoginLib.txt
+Resource    variables/AllVariables.txt
+Resource    selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource    selenium/NetworkSettings/Lan/SeleniumNetworkSettingsLanIPv4Lib.txt
+Resource    ssh/SshLib.txt
+
+*** Variables ***
+${LOGIN_BUTTON}                              xpath=//button[@class="loginBtn"]
+${URL_CHECK_IPv4}                            http://whatismyip.host/
+${IP_VNPT_CONTAIN}                           123.24.204.
+
+*** Keywords ***
+GW020BRC_FUNC_24_Teardown  
+    [Arguments]                              ${CLIENT_IP}    ${ip_address}
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    @{ip_lan}                                Create List    ${ip_address}    ${IP_GATEWAY}
+    :FOR    ${i}    IN    @{ip_lan}
+    \    SL.Close All Browsers
+    \    Login To Browser                    remote_selenium_server_tmp=${CLIENT_IP}
+    ...                                      url=http://${i}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    \    ${login}=                           Run Keyword And Return Status    Welcome Page Should Be Open
+    \    Run Keyword If                      ${login}    Factory Reset Via Web GUI    factory_reset_url=http://${i}/defaultsettings.html    
+    \    Exit For Loop If                    ${login}
+
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+    ######Close SSH
+    SSHL.Close All Connections
+
+GW020BRC_FUNC_24
+
+####### Use this account for this case; Vlan 514, ansv2/abc123 ########
+
+    ###${REMOTE_SELENIUM_SERVER}-----LAN1-ONT-LAN2-----${CLIENT_IP}
+    [Arguments]                              ${CLIENT_IP}
+    ...                                      ${wan_vlan}
+    ...                                      ${username_ipv4_pppoe}
+    ...                                      ${password_ipv4_pppoe}
+    ...                                      ${ip_address}
+    ...                                      ${subnet_mask}
+    ...                                      ${start_ip_address}
+    ...                                      ${end_ip_address}
+
+    SL.Set Selenium Speed                    0.7
+    Set Test Message                         *HTML* <b>GW020BRC_FUNC_24</b>  
+    Log To Console                           \nLogin WEB GUI ONT.
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+
+    Log To Console                           \nCreate WAN PPPoE.
+    Open Network Settings Wan Page           url=${NETWORK_SETTINGS_WAN_URL}
+    Add New Wan Service                      wan_service_type=PPPoE
+    Select PPPoE Wan Service                 network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                                      priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                                      vlan_id=${wan_vlan}
+    ...                                      ppp_username=${username_ipv4_pppoe}
+    ...                                      ppp_password=${password_ipv4_pppoe}
+    ...                                      routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                      wan_interface=${PPPOE_WAN_INTERFACE}
+    ...                                      ppp_mtu_size=${PPPOE_MTU_SIZE}
+    ...                                      configure_advanced_wan_pppoe=True
+    # Disable NAT
+    SL.Wait Until Element Is Visible         xpath=//input[@name="enblNatppp"]
+    ...                                      timeout=10s
+    ...                                      error=\nEnable NAT Checkbox Not Found
+    SL.Unselect Checkbox                     xpath=//input[@name="enblNatppp"]
+    Apply Wan Settings
+
+    Wait Until Keyword Succeeds              5x    1s    Wan Connection Should Be Success    vlan_id=${wan_vlan}
+
+    Log To Console                           \nGet Lan interface on Client
+    Open Connection And Login To Remote Machine    ssh_server_ip=${CLIENT_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+    ${lan_interface}=                              SSHL.Execute Command    ifconfig | grep -B1 "inet addr:192.168" | awk '$1!="inet" && $1!="--" {print $1}'
+
+    Config IPv4 DHCP                         ip_address=${ip_address}
+    ...                                      subnet_mask=${subnet_mask}
+    ...                                      start_ip_address=${start_ip_address}
+    ...                                      end_ip_address=${end_ip_address}
+
+    Log To Console                           \nRenew ip on Client
+    Wait Until Keyword Succeeds              5x    1s     Renew IP Address    network_interface=${lan_interface}    ip_adrress_contain=${IP_VNPT_CONTAIN}
+
+    ### Check ping 8.8.8.8
+    Wait Until Keyword Succeeds              5x    1s    Ping Should Succeed    ping_address=${TO_GOOGLE}    network_interface=${lan_interface}
+
+    ${ip_address_on_pc}=                     Get Network Interface Ip Address    network_interface=${lan_interface}
+    SL.Go To                                 ${URL_CHECK_IPv4}
+    SL.Wait Until Page Contains              ${ip_address_on_pc}    timeout=30s
+    SL.Close Browser
+
+    [Teardown]                               Run Keyword And Ignore Error    GW020BRC_FUNC_24_Teardown    ${CLIENT_IP}    ${ip_address}
+
+# *** Test Cases ***
+# GW020BRC_FUNC_24
+    # GW020BRC_FUNC_24
+    # ...    CLIENT_IP=10.2.14.198
+    # ...    wan_vlan=514
+    # ...    username_ipv4_pppoe=ansv2
+    # ...    password_ipv4_pppoe=abc123
+    # ...    ip_address=123.24.204.81
+    # ...    subnet_mask=255.255.255.248
+    # ...    start_ip_address=123.24.204.82
+    # ...    end_ip_address=123.24.204.86

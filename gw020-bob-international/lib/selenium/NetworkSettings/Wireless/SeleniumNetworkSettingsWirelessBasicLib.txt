@@ -1,0 +1,337 @@
+*** Settings ***
+Library                                       SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library                                       String     WITH NAME    STR
+Library                                       ../../../ssh/cacu.py
+Resource                                      ../../../variables/AllVariables.txt
+Resource                                      SeleniumNetworkSettingsWirelessSecurityLib.txt
+
+*** Variables ***
+${wireless_security_url}                      http://192.168.1.1/wlsec.html
+${wireless_configure_url}                     http://192.168.1.1/wlcfg.html
+
+*** Keywords ***
+
+Open Wireless Configure Page
+    [Arguments]                               ${wireless_configure_url}=${wireless_configure_url}
+    SL.Go to                                  ${wireless_configure_url}
+    SL.Wait Until Page Contains               Wireless -- Basic
+    ...                                       timeout=10s
+    ...                                       error=\nWireless Configuration Page Does Not Found\n
+    SL.Page Should Contain                    Wireless -- Basic
+
+
+Name SSID
+    [Arguments]                               ${ssid}=iGate Wifi 1                      ${wireless_configure_url}=http://192.168.1.1/wlcfg.html
+    ${onWirelessConfigurationPage}=           Run Keyword And Return Status             SL.Page Should Contain           Wireless -- Basic
+    Run Keyword If                            ${onWirelessConfigurationPage} == False   Open Wireless Configure Page     wireless_configure_url=${wireless_configure_url}
+    SL.Wait Until Element Is Visible          xpath=//input[@name="wlSsid"]      timeout=15s       error=\nSSID Textbox Does Not Show Up
+    SL.Input Text                             xpath=//input[@name="wlSsid"]      ${ssid}
+    Sleep									  1s
+    SL.Click Button                           xpath=//input[@value="Apply/Save"]
+    SL.Wait Until Page Contains               Wireless -- Basic
+    ...                                       timeout=60s
+    ...                                       error=\nWireless Configuration Page Does Not Found\n
+    Log To Console                            Change SSID to ${ssid}
+
+
+
+Check Wireless Is Enable
+    SL.Wait Until Element Is Visible          xpath=//input[@name="wlEnbl"]      timeout=10s
+    ...                                       error=\nEnable Wireless Checkbox Does Not Show Up
+    SL.Checkbox Should Be Selected            xpath=//input[@name="wlEnbl"]
+
+Check Wireless Is Disable
+    SL.Wait Until Element Is Visible          xpath=//input[@name="wlEnbl"]      timeout=10s
+    ...                                       error=\nEnable Wireless Checkbox Does Not Show Up
+    SL.Checkbox Should Not Be Selected        xpath=//input[@name="wlEnbl"]
+
+Enable Wireless
+    SL.Wait Until Element Is Visible          xpath=//input[@name="wlEnbl"]      timeout=10s
+    ...                                       error=\nEnable Wireless Checkbox Does Not Show Up
+    SL.Select Checkbox                        xpath=//input[@name="wlEnbl"]
+    SL.Click Button                           xpath=//input[@value="Apply/Save"]
+    SL.Wait Until Page Contains               Wireless -- Basic
+    ...                                       timeout=10s
+    ...                                       error=\nWireless Configuration Page Does Not Found\n
+    Log To Console                            Enable Wireless
+
+Disable Wireless
+    SL.Wait Until Element Is Visible          xpath=//input[@name="wlEnbl"]      timeout=10s
+    ...                                       error=\nEnable Wireless Checkbox Does Not Show Up
+    SL.Unselect Checkbox                      xpath=//input[@name="wlEnbl"]
+    SL.Click Button                           xpath=//input[@value="Apply/Save"]
+    SL.Wait Until Page Contains               Wireless -- Basic
+    ...                                       timeout=10s
+    ...                                       error=\nWireless Configuration Page Does Not Found\n
+    Log To Console                            Disable Wireless
+
+Get SSID
+    [Arguments]                               ${wireless_security_url}=http://192.168.1.1/wlsec.html
+    SL.Go To                                  ${wireless_security_url}
+    SL.Wait Until Page Contains               Wireless -- Security
+    ...                                       timeout=10s
+    ...                                       error=\nWireless Security Mode Does Not Show Up
+    SL.Page Should Contain                    Wireless -- Security
+    SL.Wait Until Element Is Visible          xpath=//select[@name="wlSsidIdx"]
+    ...                                       timeout=10s
+    ...                                       error=\nSelect SSID Dropdown Does Not Show Up
+    ${ssid_value}=     SL.Get Value           xpath=//select[@name="wlSsidIdx"]
+    ${ssid}=           SL.Get Text            xpath=//option[@value="${ssid_value}"]
+    Return From Keyword                       ${ssid}
+
+
+Get BSSID
+    ${onWirelessConfigurationPage}=        Run Keyword And Return Status             SL.Page Should Contain           Wireless -- Basic
+    Run Keyword If                         ${onWirelessConfigurationPage} == False   Open Wireless Configure Page
+    SL.Wait Until Element Is Visible       xpath=//body/blockquote/form/div[@id="wlSecInfo"]/table[2]/tbody/tr[2]/td[2]             timeout=5s       error=\nBSSID Does Not Show Up
+    ${bssid}=                              SL.Get Text                               xpath=//body/blockquote/form/div[@id="wlSecInfo"]/table[2]/tbody/tr[2]/td[2]
+    Return From Keyword                    ${bssid}
+
+
+SSID Should Be Set To Default
+    [Documentation]                           Verify wifi SSID should be set back to default.
+    ...                                       Input:
+    ...                                       1. ssid_prefix: Default is GW020
+
+    [Arguments]                               ${ssid_prefix}=GW020
+    ${ssid}=                                  Get SSID
+    ${bssid}=                                 Get BSSID
+    ${bssidSplitedList}                       STR.Get Substring                  ${bssid}     -8
+    ${bssidSplitedList}=                      STR.Remove String Using Regexp     ${bssidSplitedList}     :
+    ${bssidSplitedListInsert}=                Insert BSSID                       ${bssidSplitedList}
+    ${bssidSplitedListInsertRm}=              STR.Remove String Using Regexp     ${bssidSplitedListInsert}      0x
+    ${bssidSplitedListInsertRmUpper}=         STR.Convert To Uppercase            ${bssidSplitedListInsertRm}    
+    Should Be Equal                           ${ssid}     ${ssid_prefix}_${bssidSplitedListInsertRmUpper}
+
+Enable Virtual Access Point
+    [Arguments]                               ${WIFI_SSID_2}    ${WIFI_SSID_4}    ${mode}=admin    ${wireless_configure_url}=http://192.168.1.1/wlcfg.html
+    ${onWirelessConfigurationPage}=           Run Keyword And Return Status
+    ...                                       SL.Page Should Contain         Wireless -- Basic
+    Run Keyword If                            ${onWirelessConfigurationPage} == False   Open Wireless Configure Page    wireless_configure_url=${wireless_configure_url}
+    SL.Wait Until Element Is Visible          xpath=//input[@name="wlEnbl_wl0v1"]       timeout=10s
+    ...                                       error=\nVirtual Access Point Enable Checkbox 1 Does Not Show Up
+    SL.Select Checkbox                        xpath=//input[@name="wlEnbl_wl0v1"]
+    SL.Wait Until Element Is Visible          xpath=//input[@name="wlSsid_wl0v1"]       timeout=10s
+    ...                                       error=\nVirtual Access Point SSID Textbox 1 Does Not Show Up
+    SL.Input Text                             xpath=//input[@name="wlSsid_wl0v1"]       ${WIFI_SSID_2}
+    SL.Wait Until Element Is Visible          xpath=//input[@name="wlEnbl_wl0v2"]       timeout=10s
+    ...                                       error=\nVirtual Access Point Enable Checkbox 2 Does Not Show Up
+    Run Keyword If                            '${mode}' == 'operator'
+    ...                                       SL.Select Checkbox    xpath=//input[@name="wlEnbl_wl0v2"]
+    SL.Wait Until Element Is Visible          xpath=//input[@name="wlSsid_wl0v2"]       timeout=10s
+    ...                                       error=\nVirtual Access Point SSID Textbox 2 Does Not Show Up
+    Run Keyword If                            '${mode}' == 'operator'
+    ...                                       SL.Input Text
+    ...                                       xpath=//input[@name="wlSsid_wl0v2"]       ${WIFI_SSID_3}
+    SL.Wait Until Element Is Visible          xpath=//input[@name="wlEnbl_wl0v3"]       timeout=10s
+    ...                                       error=\nVirtual Access Point Enable Checkbox 3 Does Not Show Up
+    SL.Select Checkbox                        xpath=//input[@name="wlEnbl_wl0v3"]
+    SL.Wait Until Element Is Visible          xpath=//input[@name="wlSsid_wl0v3"]       timeout=10s
+    ...                                       error=\nVirtual Access Point SSID Textbox 3 Does Not Show Up
+    SL.Input Text                             xpath=//input[@name="wlSsid_wl0v3"]       ${WIFI_SSID_4}
+    SL.Click Button                           xpath=//input[@value="Apply/Save"]
+    SL.Wait Until Page Contains               Wireless -- Basic
+    ...                                       timeout=10s
+    ...                                       error=\nWireless Configuration Page Does Not Found\n
+
+Disable Virtual Access Point
+    [Arguments]                               ${mode}=admin
+    ${onWirelessConfigurationPage}=           Run Keyword And Return Status             SL.Page Should Contain           Wireless -- Basic
+    Run Keyword If                            ${onWirelessConfigurationPage} == False   Open Wireless Configure Page
+    SL.Wait Until Element Is Visible          xpath=//input[@name="wlEnbl_wl0v1"]       timeout=10s
+    ...                                       error=\nVirtual Access Point Enable Checkbox 1 Does Not Show Up
+    SL.Unselect Checkbox                      xpath=//input[@name="wlEnbl_wl0v1"]
+    SL.Input Text                             xpath=//input[@name="wlSsid_wl0v1"]       wl0_Guest1
+    SL.Wait Until Element Is Visible          xpath=//input[@name="wlEnbl_wl0v2"]       timeout=10s
+    ...                                       error=\nVirtual Access Point Enable Checkbox 2 Does Not Show Up
+    Run Keyword If                           '${mode}' == 'operator'
+    ...                                       SL.Unselect Checkbox    xpath=//input[@name="wlEnbl_wl0v2"]
+    SL.Wait Until Element Is Visible          xpath=//input[@name="wlSsid_wl0v2"]       timeout=10s
+    ...                                       error=\nVirtual Access Point SSID Textbox 2 Does Not Show Up
+    Run Keyword If                           '${mode}' == 'operator'
+    ...                                       SL.Input Text
+    ...                                       xpath=//input[@name="wlSsid_wl0v2"]       VinaphoneWifi
+    SL.Wait Until Element Is Visible          xpath=//input[@name="wlEnbl_wl0v3"]       timeout=10s
+    ...                                       error=\nVirtual Access Point Enable Checkbox 2 Does Not Show Up
+    SL.Unselect Checkbox                      xpath=//input[@name="wlEnbl_wl0v3"]
+    SL.Input Text                             xpath=//input[@name="wlSsid_wl0v3"]       wl0_Guest3
+    SL.Click Button                           xpath=//input[@value="Apply/Save"]
+    SL.Wait Until Page Contains               Wireless -- Basic
+    ...                                       timeout=10s
+    ...                                       error=\nWireless Configuration Page Does Not Found\n
+
+
+Get ONT default wifi ssid
+    [Documentation]                           Get ONT default wifi ssid
+    ...                                       input:
+    ...                                       1. ${ont_mac_address}
+    [Arguments]                               ${ont_mac_address}
+    ${first_part_of_ssid}                     Set Variable    GW020_
+    ${ont_mac_address}=                       Should Match Regexp    ${ont_mac_address}    [0-9A-Z]+\\:[0-9A-Z]+\\:[0-9A-Z]+$
+    ${ont_mac_address}=                       STR.Replace String Using Regexp    ${ont_mac_address}    \\:    ${EMPTY}
+    ${ont_mac_addressInsert}                  Insert BSSID                       ${ont_mac_address}
+    ${ont_mac_addressInsertRm}=               STR.Remove String Using Regexp     ${ont_mac_addressInsert}      0x
+    ${ont_mac_addressInsertRmUpper}=          STR.Convert To Uppercase           ${ont_mac_addressInsertRm}    
+    ${ont_default_ssid}=                      Catenate     SEPARATOR=    GW020_${ont_mac_addressInsertRmUpper}
+    [Return]                                  ${ont_default_ssid}
+
+
+
+Change WiFi Name and Security For SSIDs
+    [Documentation]                          Change  WiFi Name and Security For SSIDs
+
+    [Arguments]                              ${wireless_configure_url}=http://192.168.1.1/wlcfg.html
+    ...                                      ${main_ssid}=${WIFI_SSID_1}
+    ...                                      ${wireless_security_url}=http://192.168.1.1/wlsec.html
+    ...                                      ${mode_1}=Open
+    ...                                      ${ssid_selected_2}=${WIFI_SSID_2}
+    ...                                      ${mode_2}=Open
+    ...                                      ${ssid_selected_4}=${WIFI_SSID_4}
+    ...                                      ${mode_4}=Open
+
+    Open Wireless Configure Page             wireless_configure_url=${WIRELESS_CONFIGURE_URL}
+    Log To Console                           Check Wireless of Main SSID Is Enable...
+    Check Wireless Is Enable
+
+########Get original SSID
+    Log To Console                           Getting original SSIDs...
+    ${default_SSID}=                         Get SSID
+    Set Suite Variable                       ${default_SSID}
+
+
+########Rename for SSIDs
+    Log To Console                           \nRename and select Security for SSIDs
+    Log To Console                           \nRename for MAIN SSID...
+    Name SSID                                ssid=${WIFI_SSID_1}
+    Log To Console                           \nRename for SSID 2 and SSID 4...
+    Enable Virtual Access Point              ${WIFI_SSID_2}    ${WIFI_SSID_4}
+
+########Select Security for SSIDs
+    Log To Console                           \nSelect Security for SSIDs
+    Open Wireless Security Page              wireless_security_url=${WIRELESS_SECURITY_URL}
+
+###### MAIN SSID
+    Log To Console                           \nSelect Security for MAIN SSID
+    Select SSID                              ssid=${WIFI_SSID_1}
+    Select Network Authentication            mode=${mode_1}
+    Run Keyword If                          'Open' == '${mode_1}'                    SL.Click Button                xpath=//input[@value="Apply/Save"]
+    ...    ELSE IF                          'WPA2-PSK' == '${mode_1}'                Configure WPA2-PSK Mode
+    ...    ELSE IF                          'Mixed WPA2/WPA-PSK' == '${mode_1}'      Configure Mixed WPA2/WPA-PSK Mode
+    ...    ELSE IF                          'Shared' == '${mode_1}'                  Configure Shared Mode
+
+
+###### SSID 2
+    Log To Console                           \nSelect Security for SSID 2
+    Select SSID                              ssid=${WIFI_SSID_2}
+    Select Network Authentication            mode=${mode_2}
+    Run Keyword If                          'Open' == '${mode_2}'                    SL.Click Button                xpath=//input[@value="Apply/Save"]
+    ...    ELSE IF                          'WPA2-PSK' == '${mode_2}'                Configure WPA2-PSK Mode
+    ...    ELSE IF                          'Mixed WPA2/WPA-PSK' == '${mode_2}'      Configure Mixed WPA2/WPA-PSK Mode
+    ...    ELSE IF                          'Shared' == '${mode_2}'                  Configure Shared Mode
+
+###### SSID 4
+    Log To Console                           \nSelect Security for SSID 4
+    Select SSID                              ssid=${WIFI_SSID_4}
+    Select Network Authentication            mode=${mode_4}
+    Run Keyword If                          'Open' == '${mode_4}'                    SL.Click Button                xpath=//input[@value="Apply/Save"]
+    ...    ELSE IF                          'WPA2-PSK' == '${mode_4}'                Configure WPA2-PSK Mode
+    ...    ELSE IF                          'Mixed WPA2/WPA-PSK' == '${mode_4}'      Configure Mixed WPA2/WPA-PSK Mode
+    ...    ELSE IF                          'Shared' == '${mode_4}'                  Configure Shared Mode
+
+
+
+Enable WMF For SSID
+    [Arguments]                              ${ssid}
+    ${onWirelessConfigurationPage}=     Run Keyword And Return Status             SL.Page Should Contain           Wireless -- Basic
+    Run Keyword If                      ${onWirelessConfigurationPage} == False   Open Wireless Configure Page
+    SL.Wait Until Element Is Visible    xpath=//input[@name='wlEnableWmf_wl0v3']    timeout=5s     error=\nWMF Checkbox Does Not Show Up
+    SL.Select Checkbox                  xpath=//input[@name='wlEnableWmf_wl0v3']
+    SL.Click Button                     xpath=//input[@value='Apply/Save']
+    SL.Wait Until Page Contains         Wireless -- Basic
+    ...                                 timeout=10s
+    ...                                 error=\nWireless Configuration Page Does Not Found\n
+    Log To Console                      Enable WMF for ${ssid}
+
+
+Verify Enable WMF for SSID
+    Open Wireless Configure Page        ${WIRELESS_CONFIGURE_URL}
+    SL.Wait Until Element Is Visible    xpath=//input[@name="wlEnableWmf_wl0v3"]    timeout=10s     error=\nWMF Checkbox Does Not Show Up
+    SL.Checkbox Should Be Selected      xpath=//input[@name="wlEnableWmf_wl0v3"]
+
+
+
+Get ONT MAC Address
+    SL.Page Should Contain Element     xpath=//table[2]/tbody/tr[2]/td[2]
+    ${mac_address}=                    SL.Get Text     xpath=//table[2]/tbody/tr[2]/td[2]
+    [Return]                           ${mac_address}
+
+
+Compare SSID With BSSID
+    ${ssid}=                               Get SSID
+    ${bssid}=                              Get BSSID
+    Log To Console                         SSID= ${ssid}
+    Log To Console                         BSSID= ${bssid}
+    ${ssidLastSixDigit}=                   STR.Fetch From Right           ${ssid}      _
+    ${bssidSplitedList}                    STR.Get Substring              ${bssid}     -8
+    ${bssidSplitedList}=                   STR.Remove String Using Regexp    ${bssidSplitedList}     :
+    Log To Console      SSID Last Six Digit= ${ssidLastSixDigit}
+    Log To Console      BSSID Last Six Digit= ${bssidSplitedList}
+    ${resultCacu}=                         Convert SSID                   ${bssidSplitedList}    ${ssidLastSixDigit}
+    Log To Console                 ${resultCacu}
+    Run Keyword If      ${resultCacu} == 1    Log To Console      Matched!
+    ...       ELSE      Fail     Not Matched!
+
+
+
+#########################
+### Hide Access Point ###
+#########################
+
+Hide Access Point
+    ${onWirelessConfigurationPage}=     Run Keyword And Return Status             SL.Page Should Contain           Wireless -- Basic
+    Run Keyword If                      ${onWirelessConfigurationPage} == False   Open Wireless Configure Page
+    SL.Wait Until Element Is Visible    xpath=//input[@name="wlHide"]    timeout=5s     error=\nHide Access Point Checkbox Does Not Show Up
+    SL.Select Checkbox                  xpath=//input[@name="wlHide"]
+    SL.Wait Until Element Is Visible    xpath=//input[@name="wlHide_wl0v1"]    timeout=5s     error=\nHide Access Point Checkbox Does Not Show Up
+    SL.Select Checkbox                  xpath=//input[@name="wlHide_wl0v1"]
+    SL.Wait Until Element Is Visible    xpath=//input[@name="wlHide_wl0v3"]    timeout=5s     error=\nHide Access Point Checkbox Does Not Show Up
+    SL.Select Checkbox                  xpath=//input[@name="wlHide_wl0v3"]
+    SL.Click Button                     xpath=//input[@value="Apply/Save"]
+    SL.Wait Until Page Contains         Wireless -- Basic
+    ...                                 timeout=10s
+    ...                                 error=\nWireless Configuration Page Does Not Found\n
+    Log To Console                      Hide Access Point
+
+Verify Hide Access Point
+    Open Wireless Configure Page
+    SL.Wait Until Element Is Visible    xpath=//input[@name="wlHide"]    timeout=10s     error=\nHide Access Point Checkbox Does Not Show Up
+    SL.Checkbox Should Be Selected      xpath=//input[@name="wlHide"]
+    SL.Wait Until Element Is Visible    xpath=//input[@name="wlHide_wl0v1"]    timeout=10s     error=\nHide Access Point Checkbox Does Not Show Up
+    SL.Checkbox Should Be Selected      xpath=//input[@name="wlHide_wl0v1"]
+    SL.Wait Until Element Is Visible    xpath=//input[@name="wlHide_wl0v3"]    timeout=10s     error=\nHide Access Point Checkbox Does Not Show Up
+    SL.Checkbox Should Be Selected      xpath=//input[@name="wlHide_wl0v3"]
+
+Reveal Access Point
+    ${onWirelessConfigurationPage}=     Run Keyword And Return Status             SL.Page Should Contain           Wireless -- Basic
+    Run Keyword If                      ${onWirelessConfigurationPage} == False   Open Wireless Configure Page
+    SL.Wait Until Element Is Visible    xpath=//input[@name="wlHide"]    timeout=5s     error=\nHide Access Point Checkbox Does Not Show Up
+    SL.Unselect Checkbox                xpath=//input[@name="wlHide"]
+    SL.Wait Until Element Is Visible    xpath=//input[@name="wlHide_wl0v1"]    timeout=5s     error=\nHide Access Point Checkbox Does Not Show Up
+    SL.Unselect Checkbox                xpath=//input[@name="wlHide_wl0v1"]
+    SL.Wait Until Element Is Visible    xpath=//input[@name="wlHide_wl0v3"]    timeout=5s     error=\nHide Access Point Checkbox Does Not Show Up
+    SL.Unselect Checkbox                xpath=//input[@name="wlHide_wl0v3"]
+    SL.Click Button                     xpath=//input[@value="Apply/Save"]
+    SL.Wait Until Page Contains         Wireless -- Basic
+    ...                                 timeout=10s
+    ...                                 error=\nWireless Configuration Page Does Not Found\n
+    Log To Console                      Reveal Access Point
+
+Verify Reveal Access Point
+    ${onWirelessConfigurationPage}=     Run Keyword And Return Status             SL.Page Should Contain           Wireless -- Basic
+    Run Keyword If                      ${onWirelessConfigurationPage} == False   Open Wireless Configure Page
+    SL.Wait Until Element Is Visible    xpath=//input[@name="wlHide"]    timeout=5s     error=\nHide Access Point Checkbox Does Not Show Up
+    SL.Checkbox Should Not Be Selected      xpath=//input[@name="wlHide"]
+    SL.Wait Until Element Is Visible    xpath=//input[@name="wlHide_wl0v1"]    timeout=10s     error=\nHide Access Point Checkbox Does Not Show Up
+    SL.Checkbox Should Not Be Selected      xpath=//input[@name="wlHide_wl0v1"]
+    SL.Wait Until Element Is Visible    xpath=//input[@name="wlHide_wl0v3"]    timeout=10s     error=\nHide Access Point Checkbox Does Not Show Up
+    SL.Checkbox Should Not Be Selected      xpath=//input[@name="wlHide_wl0v3"]

@@ -1,0 +1,412 @@
+*** Settings ***
+Library                                      SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Resource                                     selenium/Login/SeleniumLoginLib.txt
+Resource                                     selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource                                     selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource                                     selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessBasicLib.txt
+Resource                                     selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource                                     ssh/SshLib.txt
+Resource                                     variables/AllVariables.txt
+Resource                                     selenium/Diagnostics/DiagnosticsWAN/SeleniumDiagnosticsDiagnosticsWANLib.txt
+Resource                                     selenium/Management/Reboot/SeleniumManagementRebootLib.txt
+*** Variables ***
+${LOGIN_BUTTON}                              xpath=//button[@class="loginBtn"]
+
+*** Keywords ***
+GW020BRC_FUNC_50_TC_02_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+
+GW020BRC_FUNC_50_TC_02_Connect
+    ##Step 1: Create a new wan pppoe
+    SL.Set Selenium Speed                    0.7
+    Set Test Message                        *HTML* <b>GW020BRC_FUNC_50_TC_02</b>
+    Log To Console                          \nStep 1: Login to Wan Configure Page with account Admin\n
+    Login To Browser                        remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                     url=${LOGIN_URL}
+    ...                                     username=${ONT_WEB_USER}
+    ...                                     password=${ONT_WEB_PASS}
+    ...                                     browser=${BROWSER}
+    Welcome Page Should Be Open
+    Open Network Settings Wan Page          url=${NETWORK_SETTINGS_WAN_URL}
+    Log To Console                          \nStep 1.1: Create a new WAN PPPoE\n
+    Create New Wan PPPoE                    url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                     network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                                     priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                                     vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    ...                                     ppp_username=${CORRECT_PPP_USERNAME}
+    ...                                     ppp_password=${CORRECT_PPP_PASSWORD}
+    ...                                     routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                     wan_interface=${PPPOE_WAN_INTERFACE}
+
+    ##Verify WAN should success on web
+    Log To Console                          \nStep 1.2: Verify WAN should success on web\n
+    Wait Until Keyword Succeeds             5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+    ###Step 2: Check Diagnostics WAN
+    Log To Console                           \nStep 2: Check Diagnostics WAN when PPPoE WAN is Connected\n
+    SL.Go to                                 http://192.168.1.1/diagwan.html
+    SL.Wait Until Page Contains              Diagnostics WAN
+    ...                                      timeout=10s
+    ...                                      error=\nDiagnostics WAN Page Does Not Found\n
+    SL.Page Should Contain                   Diagnostics WAN
+
+    #####Run Test Button
+    Log To Console                            \nStep 2.1: Check Diagnostics WAN 4000\n
+    SL.Wait Until Page Contains Element        xpath=//input[@value="Test"]
+    ...                                        timeout=20s
+    ...                                        error=Test Button not found!
+    Log To Console                             \nClick Test button Lan 1
+    SL.Click Element                           xpath=//input[@value="Test"]
+
+    SL.Wait Until Page Contains Element        xpath=//input[@value="Test"]
+    ...                                        timeout=20s
+    ...                                        error=Test Button not found!
+    Sleep                                      10s
+    Log To Console                             \nClick Test button Lan 2
+    SL.Click Element                           xpath=//input[@value="Test"]
+    SL.Wait Until Page Contains                IPoE/veip0.1 Diagnostics
+    Sleep    2s
+    Log To Console                             \nChecking Diagnostics WAN 4000...
+    Ping default gateway Should Be Pass
+    Log To Console                             \n=> Ping to default gateway Passed!!!\n
+
+    Ping DNS Should Be Pass
+    Log To Console                             \n=> Ping to DNS Passed!!!\n
+
+    #####Click Next Connection Button 3 times
+    Log To Console                            \nStep 2.2: Check Diagnostics WAN PPPoE\n
+
+    Log To Console                             \nMoving to interface IPoE/veip0.2
+    SL.Wait Until Page Contains Element        xpath=//input[@value="Next Connection"]
+    ...                                        timeout=20s
+    ...                                        error=Next Connection Button not found!
+    SL.Click Element                           xpath=//input[@value="Next Connection"]
+    SL.Wait Until Page Contains                IPoE/veip0.2 Diagnostics
+    ...                                        timeout=30s
+    ...                                        error=\nDiagnostics WAN Page of IPoE/veip0.2 interface Does Not Found\n
+    SL.Page Should Contain                     IPoE/veip0.2 Diagnostics
+
+    Log To Console                             \nMoving to interface IPoE/veip0.3
+    SL.Wait Until Page Contains Element        xpath=//input[@value="Next Connection"]
+    ...                                        timeout=20s
+    ...                                        error=Next Connection Button not found!
+    SL.Click Element                           xpath=//input[@value="Next Connection"]
+    SL.Wait Until Page Contains                IPoE/veip0.3 Diagnostics
+    ...                                        timeout=30s
+    ...                                        error=\nDiagnostics WAN Page of IPoE/veip0.3 interface Does Not Found\n
+    SL.Page Should Contain                     IPoE/veip0.3 Diagnostics
+
+    Log To Console                             \nMoving to interface PPPoE/ppp0.4
+    SL.Wait Until Page Contains Element        xpath=//input[@value="Next Connection"]
+    ...                                        timeout=20s
+    ...                                        error=Next Connection Button not found!
+    SL.Click Element                            xpath=//input[@value="Next Connection"]
+    SL.Wait Until Page Contains                PPPoE/ppp0.4 Diagnostics
+    ...                                        timeout=30s
+    ...                                        error=\nDiagnostics WAN Page of PPPoE/ppp0.4 interface Does Not Found\n
+    SL.Page Should Contain                     PPPoE/ppp0.4 Diagnostics
+
+    SL.Wait Until Page Contains Element        xpath=//input[@value="Test"]
+    ...                                        timeout=20s
+    ...                                        error=Test Button not found!
+    SL.Click Element                           xpath=//input[@value="Test"]
+    Sleep    2s
+
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsWANLib.Get Cell Value Diagnostic Wan   first_row_name=Test PPP server connection
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'PASS '
+    Log To Console                           \n=> Test PPP Server Connection Passed!!!\n
+
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsWANLib.Get Cell Value Diagnostic Wan   first_row_name=Test authentication with ISP
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'PASS '
+    Log To Console                           \n=> Test authentication with ISP Passed!!!\n
+
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsWANLib.Get Cell Value Diagnostic Wan   first_row_name=Test the assigned IP address
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'PASS'
+    Log To Console                           \n=> Test the assigned IP address Passed!!!\n
+
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsWANLib.Get Cell Value Diagnostic Wan   first_row_name=Ping default gateway
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'PASS'
+    Log To Console                           \n=> Ping to default gateway Passed!!!\n
+
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsWANLib.Get Cell Value Diagnostic Wan   first_row_name=Ping default gateway
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'PASS'
+    Log To Console                           \n=> Ping to DNS Passed!!!\n
+
+GW020BRC_FUNC_50_TC_02_disconnected
+    #####Step 3: Disconnect PPPoE WAN
+    SL.Go To                                 url=http://192.168.1.1/wancfg.cmd?action=view
+    SL.Wait Until Page Contains              WAN Info
+    ...                                      timeout=20s
+    ...                                      error=\nWAN Info Page Not Found
+    SL.Page Should Contain                   WAN Info
+
+    ######Click Disconnect Button
+    Log To Console                           \n\nStep 3: Click Disconnect Button\n
+    Disconnect WAN                            vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    Log To Console                           \nCheck WAN PPPoE Status
+    Wait Until Keyword Succeeds              5x    1s    Wan Connection Should Be Failed    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    Log To Console                           \nCheck WAN 4000 Status
+    Wait Until Keyword Succeeds              5x    1s    Wan Connection Should Be Success    vlan_id=4000
+    SL.Close Browser
+
+    ####Check Diagnostics WAN
+    Log To Console                           \nCheck Diagnostics WAN when PPPoE WAN is Disconnected\n
+    Login To Browser                        remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                     url=${LOGIN_URL}
+    ...                                     username=${ONT_WEB_USER}
+    ...                                     password=${ONT_WEB_PASS}
+    ...                                     browser=${BROWSER}
+    Welcome Page Should Be Open
+    SL.Go to                                 http://192.168.1.1/diagwan.html
+    SL.Wait Until Page Contains              Diagnostics WAN
+    ...                                      timeout=10s
+    ...                                      error=\nDiagnostics WAN Page Does Not Found\n
+    SL.Page Should Contain                   Diagnostics WAN
+    Sleep                                     5s
+
+### Run Previos Connection Button de check trang thai cua WAN 4000 truoc
+    Log To Console                            \nStep 3.1: Click Previos Connection Button 3 times to check Diagnostics WAN 4000 when PPPoE WAN is Disconnected\\n
+    SL.Wait Until Page Contains Element        xpath=//input[@value="Previous Connection"]
+    ...                                        timeout=20s
+    ...                                        error=Test Button not found!
+    Log To Console                             \nClick Previos Connection Button Lan 1
+    SL.Click Element                           xpath=//input[@value="Previous Connection"]
+    Sleep                                      10s
+
+    SL.Wait Until Page Contains Element        xpath=//input[@value="Previous Connection"]
+    ...                                        timeout=20s
+    ...                                        error=Test Button not found!
+    Log To Console                             \nClick Previos Connection Button Lan 2
+    SL.Click Element                           xpath=//input[@value="Previous Connection"]
+
+    SL.Wait Until Page Contains Element        xpath=//input[@value="Previous Connection"]
+    ...                                        timeout=20s
+    ...                                        error=Test Button not found!
+    Log To Console                             \nClick Previos Connection Button Lan 3
+    SL.Click Element                           xpath=//input[@value="Previous Connection"]
+
+    SL.Wait Until Page Contains                IPoE/veip0.1 Diagnostics
+    Sleep    2s
+
+    Log To Console                             \nChecking Diagnostics WAN 4000...
+    Ping default gateway Should Be Pass
+    Log To Console                           \n=> Ping to default gateway Passed!!!\n
+
+    Ping DNS Should Be Pass
+    Log To Console                           \n=> Ping to DNS Passed!!!\n
+
+    #####Click Next Connection Button 3 times de check trang thai cua WAN PPPoE khi bi Disconnect
+    Log To Console                            \nStep 3.2: Check Diagnostics WAN PPPoE when PPPoE WAN is Disconnected\\n
+    Log To Console                            \nClick Next Connection Button 3 times\n
+    SL.Wait Until Page Contains Element        xpath=//input[@value="Next Connection"]
+    ...                                        timeout=60s
+    ...                                        error=Next Connection Button not found!
+    Log To Console                             \nClick Next Connection Button Lan 1
+    SL.Click Element                           xpath=//input[@value="Next Connection"]
+    SL.Wait Until Page Contains                IPoE/veip0.2 Diagnostics
+    ...                                        timeout=30s
+    ...                                        error=\nDiagnostics WAN Page of IPoE/veip0.2 interface Does Not Found\n
+    SL.Page Should Contain                     IPoE/veip0.2 Diagnostics
+
+    Log To Console                             \nClick Next Connection Button Lan 2
+    SL.Click Element                           xpath=//input[@value="Next Connection"]
+    SL.Wait Until Page Contains                IPoE/veip0.3 Diagnostics
+    ...                                        timeout=30s
+    ...                                        error=\nDiagnostics WAN Page of IPoE/veip0.3 interface Does Not Found\n
+    SL.Page Should Contain                     IPoE/veip0.3 Diagnostics
+
+    Log To Console                             \nClick Next Connection Button Lan 3
+    SL.Click Element                           xpath=//input[@value="Next Connection"]
+    SL.Wait Until Page Contains                PPPoE/ppp0.4 Diagnostics
+    ...                                        timeout=30s
+    ...                                        error=\nDiagnostics WAN Page of PPPoE/ppp0.4 interface Does Not Found\n
+    SL.Page Should Contain                     PPPoE/ppp0.4 Diagnostics
+
+    SL.Wait Until Page Contains Element        xpath=//input[@value="Test"]
+    ...                                        timeout=20s
+    ...                                        error=Test Button not found!
+    Log To Console                             \nClick Test Button\n
+    SL.Click Element                           xpath=//input[@value="Test"]
+    Sleep    2s
+
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsWANLib.Get Cell Value Diagnostic Wan   first_row_name=Test PPP server connection
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'FAIL '
+    Log To Console                           \n=> Test PPP Server Connection Failed!!!\n
+
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsWANLib.Get Cell Value Diagnostic Wan   first_row_name=Test authentication with ISP
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'FAIL '
+    Log To Console                           \n=> Test authentication with ISP Failed!!!\n
+
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsWANLib.Get Cell Value Diagnostic Wan   first_row_name=Test the assigned IP address
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'FAIL'
+    Log To Console                           \n=> Test the assigned IP address Failed!!!\n
+
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsWANLib.Get Cell Value Diagnostic Wan   first_row_name=Ping default gateway
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'FAIL'
+    Log To Console                           \n=> Ping to default gateway Failed!!!\n
+
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsWANLib.Get Cell Value Diagnostic Wan   first_row_name=Ping primary Domain Name Server
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'FAIL'
+    Log To Console                           \n=> Ping to DNS Failed!!!\n
+    SL.Delete All Cookies
+
+    ########Step 4: Reconnect WAN PPPoE
+    Log To Console                                 \n\nStep 4: Reconnect WAN PPPoE\n
+    SL.Go To                                       url=http://192.168.1.1/wancfg.cmd?action=view
+    SL.Wait Until Page Contains                    WAN Info
+    ...                                            timeout=20s
+    ...                                            error=\nWAN Info Page Not Found
+    SL.Page Should Contain                         WAN Info
+    ######Click Reconnect Button
+    Log To Console                                 \n\nStep 4.1: Click Reconnect Button\n
+    Connect WAN                                   vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    Log To Console                                \nCheck WAN PPPoE Status
+    Wait Until Keyword Succeeds                   5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    Log To Console                                \nCheck WAN 4000 Status
+    Wait Until Keyword Succeeds                   5x    1s    Wan Connection Should Be Success    vlan_id=4000
+
+    ####Step 4.2: Check Diagnostics WAN
+    Log To Console                                \nStep 4.2: Check Diagnostics WAN when PPPoE WAN is Connected\n
+    ####Go To Diagnostics WAN Page
+    SL.Go to                                    http://192.168.1.1/diagwan.html
+    SL.Wait Until Page Contains                 Diagnostics WAN
+    ...                                         timeout=10s
+    ...                                         error=\nDiagnostics WAN Page Does Not Found\n
+    SL.Page Should Contain                      Diagnostics WAN
+
+### Run Previos Connection Button de check trang thai cua WAN 4000 truoc
+    Log To Console                            \nStep 4.3: Click Previos Connection Button 3 times to check Diagnostics WAN 4000 when PPPoE WAN is Disconnected\\n
+    SL.Wait Until Page Contains Element        xpath=//input[@value="Previous Connection"]
+    ...                                        timeout=20s
+    ...                                        error=Test Button not found!
+    Log To Console                             \nClick Previos Connection Button Lan 1
+    SL.Click Element                           xpath=//input[@value="Previous Connection"]
+    Sleep                                      10s
+
+    SL.Wait Until Page Contains Element        xpath=//input[@value="Previous Connection"]
+    ...                                        timeout=20s
+    ...                                        error=Test Button not found!
+    Log To Console                             \nClick Previos Connection Button Lan 2
+    SL.Click Element                           xpath=//input[@value="Previous Connection"]
+
+    SL.Wait Until Page Contains Element        xpath=//input[@value="Previous Connection"]
+    ...                                        timeout=20s
+    ...                                        error=Test Button not found!
+    Log To Console                             \nClick Previos Connection Button Lan 3
+    SL.Click Element                           xpath=//input[@value="Previous Connection"]
+
+    SL.Wait Until Page Contains                IPoE/veip0.1 Diagnostics
+    Sleep    2s
+
+    Log To Console                             \nChecking Diagnostics WAN 4000 when PPPoE WAN is Connected...
+    Ping default gateway Should Be Pass
+    Log To Console                             \n=> Ping to default gateway Passed!!!\n
+
+    Ping DNS Should Be Pass
+    Log To Console                             \n=> Ping to DNS Passed!!!\n
+
+    #####Click Next Connection Button 3 times
+    Log To Console                            \nStep 4.4: Check Diagnostics WAN PPPoE\n
+
+    Log To Console                             \nMoving to interface IPoE/veip0.2
+    SL.Wait Until Page Contains Element        xpath=//input[@value="Next Connection"]
+    ...                                        timeout=20s
+    ...                                        error=Next Connection Button not found!
+    SL.Click Element                           xpath=//input[@value="Next Connection"]
+    SL.Wait Until Page Contains                IPoE/veip0.2 Diagnostics
+    ...                                        timeout=30s
+    ...                                        error=\nDiagnostics WAN Page of IPoE/veip0.2 interface Does Not Found\n
+    SL.Page Should Contain                     IPoE/veip0.2 Diagnostics
+
+    Log To Console                             \nMoving to interface IPoE/veip0.3
+    SL.Wait Until Page Contains Element        xpath=//input[@value="Next Connection"]
+    ...                                        timeout=20s
+    ...                                        error=Next Connection Button not found!
+    SL.Click Element                           xpath=//input[@value="Next Connection"]
+    SL.Wait Until Page Contains                IPoE/veip0.3 Diagnostics
+    ...                                        timeout=30s
+    ...                                        error=\nDiagnostics WAN Page of IPoE/veip0.3 interface Does Not Found\n
+    SL.Page Should Contain                     IPoE/veip0.3 Diagnostics
+
+    Log To Console                             \nMoving to interface PPPoE/ppp0.4
+    SL.Wait Until Page Contains Element        xpath=//input[@value="Next Connection"]
+    ...                                        timeout=20s
+    ...                                        error=Next Connection Button not found!
+    SL.Click Element                           xpath=//input[@value="Next Connection"]
+    SL.Wait Until Page Contains                PPPoE/ppp0.4 Diagnostics
+    ...                                        timeout=30s
+    ...                                        error=\nDiagnostics WAN Page of PPPoE/ppp0.4 interface Does Not Found\n
+    SL.Page Should Contain                     PPPoE/ppp0.4 Diagnostics
+
+    SL.Wait Until Page Contains Element        xpath=//input[@value="Test"]
+    ...                                        timeout=20s
+    ...                                        error=Test Button not found!
+    SL.Click Element                           xpath=//input[@value="Test"]
+    Sleep    2s
+
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsWANLib.Get Cell Value Diagnostic Wan   first_row_name=Test PPP server connection
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'PASS '
+    Log To Console                           \n=> Test PPP Server Connection Passed!!!\n
+
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsWANLib.Get Cell Value Diagnostic Wan   first_row_name=Test authentication with ISP
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'PASS '
+    Log To Console                           \n=> Test authentication with ISP Passed!!!\n
+
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsWANLib.Get Cell Value Diagnostic Wan   first_row_name=Test the assigned IP address
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'PASS'
+    Log To Console                           \n=> Test the assigned IP address Passed!!!\n
+
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsWANLib.Get Cell Value Diagnostic Wan   first_row_name=Ping default gateway
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'PASS'
+    Log To Console                           \n=> Ping to default gateway Passed!!!\n
+
+    ${connection_status}=       SeleniumDiagnosticsDiagnosticsWANLib.Get Cell Value Diagnostic Wan   first_row_name=Ping default gateway
+    Log To Console              Connection Status: ${connection_status}
+    Should Be Equal             '${connection_status}'    'PASS'
+    Log To Console                           \n=> Ping to DNS Passed!!!\n
+    SL.Close All Browsers
+
+GW020BRC_FUNC_50_TC_02
+    Log To Console                          Check Function Diagnostics WAN
+    GW020BRC_FUNC_50_TC_02_Connect
+    Log To Console                          Check Function Diagnostics WAN when WAN was Disconnected
+    GW020BRC_FUNC_50_TC_02_disconnected
+    Log To Console                          Teardown for Testcase GW020_FUNC_50_02
+    [Teardown]    Run Keyword And Ignore Error    GW020BRC_FUNC_50_TC_02_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_50_TC_02
+    # GW020BRC_FUNC_50_TC_02

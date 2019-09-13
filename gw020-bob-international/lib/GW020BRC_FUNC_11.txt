@@ -1,0 +1,170 @@
+*** Settings ***
+Library                                       SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library                                       AppiumLibrary   run_on_failure=AL.Capture Page Screenshot      WITH NAME    AL
+Resource                                      selenium/Login/SeleniumLoginLib.txt
+Resource                                      selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource                                      selenium/AdvancedFeatures/InterfaceGrouping/SeleniumAdvancedFeaturesInterfaceGrouping.txt
+Resource                                      selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessBasicLib.txt
+Resource                                      selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessSecurityLib.txt
+Resource                                      selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource                                      selenium/Management/Reboot/SeleniumManagementRebootLib.txt
+Resource                                      selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource                                      appium/Settings/AppiumSettingsWifiLib.txt
+Resource                                      variables/AllVariables.txt
+Resource                                      Watching_VLC_onSmartphone.txt
+
+*** Variables ***
+${LOGIN_BUTTON}                                xpath=//button[@class="loginBtn"]
+
+*** Keywords ***
+GW020BRC_FUNC_11_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+    AL.Close All Applications
+
+InterfaceGrouping
+    [Documentation]                          Interface Grouping to ONT's LAN Interfaces
+    ${wan_interface}=                        Get Variable Value    ${wan_interface}
+    ######InterfaceGrouping to LAN 2 and SSID 4
+    Log To Console                          \nInterfaceGrouping to LAN ${LAN_INTERFACE_ONT} and SSID ${WIFI_SSID_4}
+    Open Interface Group Page                interface_grouping_config_url=${INTERFACE_GROUPING_CONFIG_URL}
+    Add Interface Group                      group_name=${INTERFACE_GROUP_NAME}
+    ...                                      wan_name=${wan_interface}
+    ...                                      lan_interface=${LAN_INTERFACE_ONT}
+    ...                                      name_ssid=${WIFI_SSID_4}
+
+GW020BRC_FUNC_11
+    [Arguments]                              ${vlc_channel}=rtp://@232.84.1.28:8142
+    SL.Set Selenium Speed                    0.7
+    Set Test Message                         *HTML* <b>GW020BRC_FUNC_11</b>
+    Log To Console                           \nLogin to WEBGUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    #####Enable Wireles
+    Open Wireless Configure Page             wireless_configure_url=${WIRELESS_CONFIGURE_URL}
+    Log To Console                           \nEnable Wireless
+    Enable Wireless
+
+#####Rename for SSID 2 and SSID 4
+    Log To Console                           \nRename for SSID 2 and SSID 4...
+    Enable Virtual Access Point              ${WIFI_SSID_2}    ${WIFI_SSID_4}
+
+############Enable function WMF for ${WIFI_SSID_4}
+    Open Wireless Configure Page             wireless_configure_url=${WIRELESS_CONFIGURE_URL}
+    Enable WMF For SSID                      ssid=${WIFI_SSID_4}
+    Verify Enable WMF for SSID
+
+# ################Select Security for SSIDs
+    Log To Console                           \nOpen Wireless Security Page
+    Open Wireless Security Page              wireless_security_url=http://192.168.1.1/wlsec.html
+
+####Select Security
+    Log To Console                           \nSelect Security for SSID ${WIFI_SSID_4}
+    Select SSID                              ${WIFI_SSID_4}
+    Select Network Authentication            mode=Open
+
+###########Step 2.1: Access to Network Settings Wan Page---OK
+    Log To Console                           \nStep 2.1: Access to Network Settings Wan Page
+    ########Step 2.2: Add a Wan Bridge-----OK
+    Log To Console                           \nStep 2.2: Add Wan Type Bridging
+    Open Network Settings Wan Page           url=${NETWORK_SETTINGS_WAN_URL}
+    Add New Wan Service                      wan_service_type=Bridging
+    Select Bridging Wan Service              priority=${CORRECT_BRIDGE_VLAN_PRIORITY}
+    ...                                      vlan_id=${CORRECT_BRIDGE_VLAN_ID}
+
+
+    #########Step 2.3: Verify Bridging WAN should success on web----OK
+    Log To Console                          \nStep 2.3: Verify Bridging WAN should success on web
+    Wait Until Keyword Succeeds             5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_BRIDGE_VLAN_ID}
+    ${wan_interface}=                       Get Wan Interface     vlan_id=${CORRECT_BRIDGE_VLAN_ID}
+    Set Suite Variable                      ${wan_interface}
+
+    ##########InterfaceGrouping
+    Log To Console                          \nStep 2.4: InterfaceGrouping to LAN ${LAN_INTERFACE_ONT} and SSID: ${WIFI_SSID_4}
+    InterfaceGrouping
+    SL.Close Browser
+    #############Verify UE devices get IP address in subnet
+    Log To Console                          \nStep 2.5: Verify UE devices get IP address in subnet
+    Open Wifi Picker Activity               remote_server=${APPIUM_REMOTE_SERVER}
+    ...                                     remote_port=${APPIUM_REMOTE_PORT}
+    ...                                     platform=${PLATFORM_NAME}
+    ...                                     version=${PLATFORM_VERSION}
+    ...                                     ue_device_name=${DEVICE_NAME}
+    Turn On Wifi
+    Forget Saved Network And Add Network    wifi_ssid=${WIFI_SSID_4}
+    ...                                     wifi_security=None
+    ...                                     status=Connected
+    ${ip}=       Get Granted Ip Address
+    Should Contain                          ${ip}           ${BRIDGE_WAN_SUBNET}
+    AL.Close Application
+
+#############Step 3: Watching VLC on Smartphone
+    Log To Console                            \nStep 3:Watching VLC on Smartphone
+    Watching VLC on Smartphone                remote_server=${APPIUM_REMOTE_SERVER}
+    ...                                       remote_port=${APPIUM_REMOTE_PORT}
+    ...                                       platform=${PLATFORM_NAME}
+    ...                                       version=${PLATFORM_VERSION}
+    ...                                       ue_device_name=${DEVICE_NAME}
+    ...                                       vlc_channel=${VLC_CHANNEL}
+    ...                                       vlc_duration=${VIDEO_DURATION_SMARTPHONE}
+    AL.Close Application
+
+    #############Step 4: Reboot ONT and recheck-----OK
+    Log To Console                           \nStep 4.1: Reboot device...
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Run Keyword And Continue On Failure      Reboot Device Via Web GUI
+
+    ##############Step 4.2: Recheck WAN Bridge should success on web
+    SL.Go To                                       url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible               ${LOGIN_BUTTON}
+    ...                                            timeout=20s
+    ...                                            error=\nLogin Page Does Not Found!
+    Input Username                                 username=${ONT_WEB_USER}
+    Input User Password                            password=${ONT_WEB_PASS}
+    Submit Credentials
+    Welcome Page Should Be Open
+    Wait Until Keyword Succeeds             5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_BRIDGE_VLAN_ID}
+    SL.Close Browser
+
+#############Step 4.3: Watching VLC on Smartphone
+    Log To Console                            \nStep 4.3:Watching VLC on Smartphone
+    Watching VLC on Smartphone                remote_server=${APPIUM_REMOTE_SERVER}
+    ...                                       remote_port=${APPIUM_REMOTE_PORT}
+    ...                                       platform=${PLATFORM_NAME}
+    ...                                       version=${PLATFORM_VERSION}
+    ...                                       ue_device_name=${DEVICE_NAME}
+    ...                                       vlc_channel=${vlc_channel}
+    ...                                       vlc_duration=${VIDEO_DURATION_SMARTPHONE}
+    AL.Close Application
+
+    [Teardown]                               Run Keyword And Ignore Error    GW020BRC_FUNC_11_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_11
+    # GW020BRC_FUNC_11                         vlc_channel=rtp://@232.84.1.28:8142

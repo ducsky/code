@@ -1,0 +1,15 @@
+#!/user/bin/expect
+set ip [lindex $argv 0]
+spawn telnet $ip
+expect "tc login: "
+send "admin\n"
+sleep 1
+expect "Password: "
+send "VnT3ch@dm1n\n"
+sleep 1
+expect "#"
+send "tcapi get Info_PonPhy Temperature\n"
+sleep 5
+send "exit\n"
+sleep 1
+interact

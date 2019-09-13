@@ -1,0 +1,177 @@
+*** Settings ***
+Library                                      SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Resource                                     selenium/Login/SeleniumLoginLib.txt
+Resource                                     selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource                                     selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource                                     selenium/Login/SeleniumLoginWithOperatorUserLib.txt
+Resource                                     selenium/AdvancedFeatures/Routing/SeleniumAdvancedFeaturesRoutingStaticRoute.txt
+Resource                                     selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource                                     ssh/SshLib.txt
+Resource                                     variables/AllVariables.txt
+
+*** Variables ***
+${destination_ip}                            10.84.107.0/24
+${LOGIN_BUTTON}   						     xpath=//button[@class="loginBtn"]
+
+*** Keywords ***
+GW020BRC_FUNC_79_TC_02_Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    Factory Reset Via Web GUI
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+
+Change Password_TC_79_TC_02
+    [Arguments]                               ${inUserName}   ${old_pass}   ${new_pass}   ${cfm_new_pass}
+    SL.Input Text                             xpath=//input[@name='inUserName']         ${inUserName}
+    SL.Input Text                             xpath=//input[@name='inOrgPassword']      ${old_pass}
+    SL.Input Text                             xpath=//input[@name='inPassword']         ${new_pass}
+    SL.Input Text                             xpath=//input[@name='pwdCfm']             ${cfm_new_pass}
+    SL.Click Button                           xpath=//input[@value='Apply/Save']
+    SL.Wait Until Page Contains               Message
+    ...                                       timeout=20s
+    ...                                       error=\nMessage:Password change successful Does Not Found
+    SL.Click Button                           xpath=//input[@type='button']
+GW020BRC_FUNC_79_TC_02
+	[Arguments]                              ${gateway_ip}=10.84.22.1		${CORRECT_IPOE_VLAN_ID_DYNAMIC}=203
+	
+    SL.Set Selenium Speed                    0.7
+    Set Test Message                        *HTML* <b>GW020BRC_FUNC_79_TC_02</b>
+    Log To Console                           Check Firewall WAN with account Operator
+
+    ###Check IP WAN 4000 is connected on ONT 1
+    Log To Console                          \nStep 1: Check IP WAN 4000 is connected on ONT 1\n
+    Login To Browser                        remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                     url=${LOGIN_URL}
+    ...                                     username=${ONT_WEB_USER}
+    ...                                     password=${ONT_WEB_PASS}
+    ...                                     browser=${BROWSER}
+    Welcome Page Should Be Open
+    Wait Until Keyword Succeeds             5x    1s    Wan Connection Should Be Success    vlan_id=4000
+
+    ${wan_ip_address}=                      Get Wan Ip Address    vlan_id=4000
+    Set Suite Variable                       ${wan_ip_address}
+
+    ######Login To Browser on PC1
+    Open Network Settings Wan Page          url=${NETWORK_SETTINGS_WAN_URL}
+    Log To Console                          Remove if Wan interface exist
+    #####Create IPoE WAN on ONT1
+    Log To Console                           \nStep 2.1: Create IPoE WAN with Dynamic IP that correct VLAN Priority and VLAN ID on ONT1\n
+    Create New Wan IPoE                      url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                      network_protocol=${IPOE_NETWORK_PROTOCOL}
+    ...                                      priority=${CORRECT_IPOE_VLAN_PRIORITY}
+    ...                                      vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+
+    ############Verify IPoE WAN with Dynamic IP should success on web
+    Log To Console                           \nStep 2.2: Verify IPoE WAN with Dynamic IP should success on web\n
+    Wait Until Keyword Succeeds              5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+    ${wan_interface}=                        Get Wan Interface    vlan_id=${CORRECT_IPOE_VLAN_ID_DYNAMIC}
+    Set Suite Variable                       ${wan_interface}
+
+    ###Add Static Route
+    Log To Console                          \nStep 2.3: Add Static Route on ONT1\n
+    Open Static Route Page
+    Create Static Route                     destination_ip=${destination_ip}
+    ...                                     interface=${wan_interface}
+    ...                                     gateway_ip=${gateway_ip}
+
+    
+    ###Step 4:  Add WAN PPPoE (0/11)
+    Log To Console                          \nStep 4: Add a new WAN PPPoE\n
+    Open Network Settings Wan Page          url=${NETWORK_SETTINGS_WAN_URL}
+    Add New Wan Service                     wan_service_type=PPPoE
+    SL.Wait Until Element Is Visible        xpath=//input[@id="ntwkPrtcl1"]
+    ...                                     timeout=10s
+    ...                                     error=\nPPPoE Select Box Not Found
+    SL.Click Element                        xpath=//input[@id="ntwkPrtcl1"]
+
+    # Select network procotol
+    SL.Wait Until Element Is Visible        xpath=//select[@id="IpProtocalMode"]
+    ...                                     timeout=10s
+    ...                                     error=\Network Procotol Selection Not Found
+    SL.Select From List By Index            xpath=//select[@id="IpProtocalMode"]     0
+
+    # Input 802.1P Priority
+    SL.Wait Until Element Is Visible        xpath=//input[@name="vlanMuxPr"]
+    ...                                     timeout=10s
+    ...                                     error=\nPriority Text Box Not Found
+    SL.Input Text                           xpath=//input[@name="vlanMuxPr"]    0
+
+    #Input 802.1Q VLAN ID
+    SL.Wait Until Element Is Visible        xpath=//input[@name="vlanMuxId"]
+    ...                                     timeout=10s
+    ...                                     error=\nVLAN ID Text Box Not Found
+    SL.Input Text                           xpath=//input[@name="vlanMuxId"]    11
+
+    #Input PPP Username
+    SL.Wait Until Element Is Visible        xpath=//input[@name="pppUserName"]
+    ...                                     timeout=10s
+    ...                                     error=\nPPP Username Text Box Not Found
+    SL.Input Text                           xpath=//input[@name="pppUserName"]    ttcngpon
+
+    #Input PPP Password
+    SL.Wait Until Element Is Visible        xpath=//input[@name="pppPassword"]
+    ...                                     timeout=10s
+    ...                                     error=\nPPP Password Text Box Not Found
+    SL.Input Text                           xpath=//input[@name="pppPassword"]    ttcngpon
+
+    ### Select routing default gateway
+    SL.Wait Until Element Is Visible        xpath=//select[@name="selGtwyIfcs"]
+    ...                                     timeout=10s
+    ...                                     error=\nDefault IPv4 Gateway Select Box Not Found
+    SL.Select From List By Value            xpath=//select[@name="selGtwyIfcs"]    curInf4
+
+    ## Select DNS Server IPv4 Only
+    SL.Wait Until Element Is Visible        xpath=//input[@name="dns"]
+    ...                                     timeout=10s
+    ...                                     error=\nSelect DNS Server Interface Not Found
+    SL.Click Element                        xpath=//input[@name="dns"]
+    SL.Wait Until Element Is Visible        xpath=//select[@name="selDnsIfcs"]
+    ...                                     timeout=10s
+    ...                                     error=\nWAN Interface Select Box Not Found
+    SL.Select From List By Value            xpath=//select[@name="selDnsIfcs"]       curInf4
+
+    ##Click Apply/Save
+    SL.Wait Until Element Is Visible        xpath=//input[@value="Apply/Save"]
+    ...                                     timeout=10s
+    ...                                      error=\nApply/Save Button Not Found
+    SL.Click Element                         xpath=//input[@value="Apply/Save"]
+
+    ####Verify configure PPPoE WAN
+    Log To Console                          \nStep 5: Verify configure PPPoE WAN
+    Sleep                                    5s
+
+    ###Open Device Info Wan Page
+    Open Device Info Wan Page
+    Wan Status Should Be Connected           vlan_id=11
+    Wan Ip Address Should Be Visible         vlan_id=11
+
+    ###Check Firewall and NAT Status
+    Log To Console                          \nCheck Status Nat and Firewall\n
+    Firewall Status Should Be Enabled        vlan_id=11
+    NAT Status Should Be Enabled             vlan_id=11
+
+    
+    Delete All Cookies
+    Close All Browsers
+
+    [Teardown]    Run Keyword And Ignore Error   GW020BRC_FUNC_79_TC_02_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_79_TC_02
+    # Log To Console                            Thuc hien Testcase GW020BRC_FUNC_79_TC_02
+    # GW020BRC_FUNC_79_TC_02

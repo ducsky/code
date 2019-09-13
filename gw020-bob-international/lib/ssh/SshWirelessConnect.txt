@@ -1,0 +1,12 @@
+*** Settings ***
+Library                 SSHLibrary     WITH NAME     SSHL
+Resource                ../variables/AllVariables.txt
+
+*** Variable ***
+${LANInterface}                eth1
+
+** Keywords **
+Check SSID is not contain in WiFi list
+    [Arguments]                ${ssid}=iGate Wifi 1
+    ${wifi_list}=              SSHL.Execute Command     nmcli d wifi list
+    Should Not Contain         ${wifi_list}         ${ssid}

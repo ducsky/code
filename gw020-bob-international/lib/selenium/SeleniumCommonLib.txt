@@ -1,0 +1,72 @@
+*** Settings ***
+Documentation                Selenium Lib with common keywords
+Library                      SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+
+
+*** Variables ***
+${button_xpath}
+${curl_command}
+${element_xpath}
+
+*** Keywords ***
+
+Go To Page
+    [Documentation]             redirect to page with given url.
+    ...                         Input:
+    ...                         1. page_url                    page_url
+    [Arguments]             ${page_url}
+    SL.Go To              ${page_url}
+Selelct Checkbox
+    [Documentation]             select 1 checkbox on page.
+    SL.Select Checkbox       xpath=//input[@type="checkbox"]
+Click Button With Value
+    [Documentation]             click button with given button value.
+    ...                         Input:
+    ...                         1. button_value                    button_value
+    [Arguments]             ${button_value}
+    ${button_xpath} =      Set Variable  //input[@value="${button_value}"]
+    SL.Click Button       xpath=${button_xpath}
+Generate curl command
+    [Documentation]             generate curl commmand.
+    ...                         Input:
+    ...                         1. username                    username
+    ...                         2. password                    password
+    ...                         3. url                         url
+    ...                         Return:
+    ...                         1. curl commmand
+    [Arguments]             ${username}    ${password}    ${url}
+    ${curl_command} =      Set Variable  curl -u ${username}:${password} -O ${url}
+    [Return]    ${curl_command}
+Check Page Should Contain Text
+    [Documentation]             check page should contain text.
+    ...                         Input:
+    ...                         1. text
+    [Arguments]             ${text}
+    SL.Page Should Contain      ${text}
+Check Page Should Not Contain Text
+    [Documentation]             check page should not contain text.
+    ...                         Input:
+    ...                         1. text
+    [Arguments]             ${text}
+    SL.Page Should Not Contain      ${text}
+Wait Until Element Visible
+    [Documentation]             wait until element in page visible.
+    ...                         Input:
+    ...                         1. element_value
+    [Arguments]             ${element_value}
+    ${element_xpath} =      Set Variable  //input[@value="${element_value}"]
+    SL.Wait Until Element Is Visible       xpath=${element_xpath}  timeout=30s              error=\nElement With Value ${element_value} Does Not Show Up!
+Select From Dropdown
+    [Documentation]             Select from dropdown.
+    ...                         Input:
+    ...                         1. dropdown_name                dropdown name
+    ...                         1. value                        value will be selected
+    [Arguments]             ${dropdown_name}         ${value}
+    SL.Select From List By Value        xpath=//select[@name="${dropdown_name}"]        ${value}
+Fill Value To TextBox
+    [Documentation]             Fill value to a textbox.
+    ...                         Input:
+    ...                         1. textbox_name                 textbox name
+    ...                         1. value                        value will be selected
+    [Arguments]             ${textbox_name}         ${value}
+    SL.Input Text             xpath=//input[@name="${textbox_name}"]      ${value}

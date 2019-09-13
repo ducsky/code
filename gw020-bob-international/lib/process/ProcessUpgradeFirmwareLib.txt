@@ -1,0 +1,11 @@
+*** Settings ***
+Documentation                Process Firmware Library For iGate Web Administration
+Library                      Process            WITH NAME    PL
+
+*** Variables ***
+
+*** Keywords ***
+Download Firmware from Repo
+    [Arguments]                         ${firmwareUrl}=http://rdrepo.vnpt-technology.vn/repository/ONT020/ONT020/G2.16A.06RTM_171205_1820
+    ...                                 ${username}=username    ${password}=password
+    PL.Run Process                      curl  --fail  -u  ${username}:${password}  ${firmwareUrl}  -o   FIRMWARE_NAME

@@ -1,0 +1,216 @@
+*** Settings ***
+Library                                            SeleniumLibrary   run_on_failure=SL.Capture Page Screenshot    WITH NAME    SL
+Library                                            SSHLibrary    WITH NAME    SSHL
+Resource                                           selenium/Login/SeleniumLoginLib.txt
+Resource                                           selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource                                           selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource                                           selenium/Management/Reboot/SeleniumManagementRebootLib.txt
+Resource                                           selenium/NetworkSettings/Wireless/SeleniumNetworkSettingsWirelessBasicLib.txt
+Resource                                           ssh/SshLib.txt
+Resource                                           selenium/Management/Settings/SeleniumManagementSettingsFactoryResetLib.txt
+Resource                                           variables/AllVariables.txt
+
+*** Variables ***
+${LOGIN_BUTTON}                                    xpath=//button[@class="loginBtn"]
+${YOUTUBE_URL}                                     https://youtu.be/Llw9Q6akRo4
+${YOUTUBE_DURATION}                                120
+${YOUTUBE_LOGO}                                    //a[@id='logo']/div
+
+*** Keywords ***
+GW020BRC_FUNC_09_Teardown
+    ###Teardown
+    Log To Console                           \nReset factory ONT Device...\n
+    ######Factory Reset Via Web GUI
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+    
+    ######Factory Reset Via Web GUI
+    Factory Reset Via Web GUI
+    
+    SL.Go To                                 url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible         ${LOGIN_BUTTON}
+    ...                                      timeout=20s
+    ...                                      error=\nLogin Page Does Not Found!
+    Input Username                           admin
+    Input User Password                      admin
+    Submit Credentials
+    
+    SL.Delete All Cookies
+    SL.Close All Browsers
+    ######Disable wifi
+    Open Connection And Login To Remote Machine    ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+    Delete All Wireless
+    SSHL.Close All Connections
+
+GW020BRC_FUNC_09_Wifi_Rescan
+    [Arguments]                                    ${wifi_ssid}
+    SSHL.Execute Command                           nmcli device wifi rescan
+    ${wirelessList}=                               SSHL.Execute Command    nmcli device wifi list
+    Should Contain                                 ${wirelessList}    ${wifi_ssid}
+
+GW020BRC_FUNC_09
+    ##Step 1: Login then access to Network Settings Wan Page
+    SL.Set Selenium Speed                          0.7
+    Set Test Message                               *HTML* <b>GW020BRC_FUNC_09</b>
+    Log To Console                                 \nStep 1: Login to WEBGUI
+    Login To Browser                               remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                            url=${LOGIN_URL}
+    ...                                            username=${ONT_WEB_USER}
+    ...                                            password=${ONT_WEB_PASS}
+    ...                                            browser=${BROWSER}
+    Welcome Page Should Be Open
+    Log To Console                                 \nStep 1.2: Access to Network Settings Wan Page
+
+    ##Step 2: Create PPPoE WAN with VLAN Priority out of range [0-7]
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+    Log To Console                                 \nStep 2: Create PPPoE WAN with VLAN Priority out of range [0-7]
+    Create New Wan PPPoE                           url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                            network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                                            priority=${INVALID_PRIORITY}
+    ...                                            vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    ...                                            ppp_username=${CORRECT_PPP_USERNAME}
+    ...                                            ppp_password=${CORRECT_PPP_PASSWORD}
+    ...                                            routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                            wan_interface=${PPPOE_WAN_INTERFACE}
+    Popup Vlan Priority Out Of Range Should Be Visible     priority=${INVALID_PRIORITY}
+
+    ##Step 3: VLAN ID out of range [0-4094]
+    Log To Console                                 \nStep 3: Create PPPoE WAN with VLAN ID out of range [0-4094]
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+    Create New Wan PPPoE                           url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                            network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                                            priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                                            vlan_id=${INVALID_VLAN}
+    ...                                            ppp_username=${CORRECT_PPP_USERNAME}
+    ...                                            ppp_password=${CORRECT_PPP_PASSWORD}
+    ...                                            routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                            wan_interface=${PPPOE_WAN_INTERFACE}
+    Popup Vlan Id Out Of Range Should Be Visible   vlan_id=${INVALID_VLAN}
+
+    ##Step 4: Wrong PPP username/password
+    Log To Console                                 Step 4: Create PPPoE WAN with wrong PPP username/password
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+    Create New Wan PPPoE                           url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                            network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                                            priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                                            vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    ...                                            ppp_username=${INCORRECT_PPP_USERNAME}
+    ...                                            ppp_password=${CORRECT_PPP_PASSWORD}
+    ...                                            routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                            wan_interface=${PPPOE_WAN_INTERFACE}
+
+    ##Step 4.1: Verify WAN disconnected on web
+    Log To Console                                 Step 4.1: Verify WAN with wrong PPP username/password disconnected on web
+    Wait Until Keyword Succeeds                    5x    1s    Wan Connection Should Be Failed    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+    ##Name SSID
+    Open Wireless Configure Page                     wireless_configure_url=${WIRELESS_CONFIGURE_URL}
+    Name SSID                                        ssid=${WIFI_SSID_1}
+
+    ##Step 4.2: Verify Ping to 8.8.8.8 should failed
+    Log To Console                                 Step 4.2: Verify Ping to 8.8.8.8 should failed
+    Open Connection And Login To Remote Machine    ssh_server_ip=${REMOTE_SERVER_IP}
+    ...                                            ssh_server_username=${REMOTE_SERVER_USERNAME}
+    ...                                            ssh_server_password=${REMOTE_SERVER_PASSWORD}
+    # Disconnect Wifi
+    Delete All Wireless
+    Wait Until Keyword Succeeds                    120s    5s    GW020BRC_FUNC_09_Wifi_Rescan    wifi_ssid=${WIFI_SSID_1}
+    ${wlan_interface}=                             SSHL.Execute Command    nmcli --fields Device,Type device status | grep 'wifi' | awk '{print $1}'
+    ${lan_interface}=                              SSHL.Execute Command    ifconfig | grep -B1 "inet addr:192.168" | awk '$1!="inet" && $1!="--" {print $1}'
+    Wait Until Keyword Succeeds                    5x    1s    Ping Should Failed    ping_address=${TO_GOOGLE}    network_interface=${lan_interface}
+
+    Connect To Wifi                                ${wlan_interface}    ${WIFI_SSID_1}
+
+    Wait Until Keyword Succeeds                    5x    1s    Ping Should Failed    ping_address=${TO_GOOGLE}    network_interface=${wlan_interface}
+    # Disconnect Wifi
+    Delete All Wireless
+
+    #Step 5: Create PPPoE WAN with correct PPP username/password
+    Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+    Remove Wan Service                             vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+    Log To Console                                 \nStep 5: Create PPPoE WAN with correct PPP username/password
+    Create New Wan PPPoE                           url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                            network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    ...                                            priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    ...                                            vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    ...                                            ppp_username=${CORRECT_PPP_USERNAME}
+    ...                                            ppp_password=${CORRECT_PPP_PASSWORD}
+    ...                                            routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    ...                                            wan_interface=${PPPOE_WAN_INTERFACE}
+
+    ##Step 5.1: Verify WAN should success on web
+    Log To Console                                 \nStep 5.1: Verify WAN should success on web
+    Wait Until Keyword Succeeds                    5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+    ##Step 5.2: Verify Ping to 8.8.8.8 should success
+    Log To Console                                 \nStep 5.2: Verify Ping to 8.8.8.8 should success
+    Wait Until Keyword Succeeds                    5x    1s    Ping Should Succeed    ping_address=${TO_GOOGLE}    network_interface=${lan_interface}
+
+    Connect To Wifi                                ${wlan_interface}    ${WIFI_SSID_1}
+
+    Wait Until Keyword Succeeds                    5x    1s    Ping Should Succeed    ping_address=${TO_GOOGLE}    network_interface=${wlan_interface}
+    # Disconnect Wifi
+    Delete All Wireless
+
+    ##Step 6: Add another WAN PPPoE with the same VLAN ID & Priority
+    # Log To Console                                 \nStep 6: Add another WAN PPPoE with the same VLAN ID & Priority
+    # Open Network Settings Wan Page                 url=${NETWORK_SETTINGS_WAN_URL}
+    # Add New Wan Service                            wan_service_type=PPPoE
+    # Select PPPoE Wan Service                       network_protocol=${PPPOE_NETWORK_PROTOCOL}
+    # ...                                            priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+    # ...                                            vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    # ...                                            ppp_username=${CORRECT_PPP_USERNAME}
+    # ...                                            ppp_password=${CORRECT_PPP_PASSWORD}
+    # ...                                            routing_default_gw=${PPPOE_ROUTING_DEFAULT_GW}
+    # ...                                            wan_interface=${PPPOE_WAN_INTERFACE}
+    # ...                                            ppp_mtu_size=${PPPOE_MTU_SIZE}
+    # Apply Wan Settings
+    # Page Wan Connection Existed Should Be Visible    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+    # ...                                              priority=${CORRECT_PPPOE_VLAN_PRIORITY}
+
+    ########Step 7: Reboot ONT
+    Log To Console                                 \nStep 7: Reboot ONT
+    Run Keyword And Continue On Failure            Reboot Device Via Web GUI
+
+    ########Step 7.1: Verify WAN PPPoE should success on web
+    SL.Go To                                       url=${LOGIN_URL}
+    SL.Wait Until Element Is Visible               ${LOGIN_BUTTON}
+    ...                                            timeout=20s
+    ...                                            error=\nLogin Page Does Not Found!
+    Input Username                                 username=${ONT_WEB_USER}
+    Input User Password                            password=${ONT_WEB_PASS}
+    Submit Credentials
+    Welcome Page Should Be Open
+    Wait Until Keyword Succeeds                    5x    1s    Wan Connection Should Be Success    vlan_id=${CORRECT_PPPOE_VLAN_ID}
+
+    #####Step 7.2: Verify Ping to 8.8.8.8 should success
+    Log To Console                                 \nStep 7.2: Verify Ping to 8.8.8.8 should success
+    Wait Until Keyword Succeeds                    5x    1s    Ping Should Succeed    ping_address=${TO_GOOGLE}    network_interface=${lan_interface}
+
+    Wait Until Keyword Succeeds                    120s    5s    GW020BRC_FUNC_09_Wifi_Rescan    wifi_ssid=${WIFI_SSID_1}
+    Connect To Wifi                                ${wlan_interface}    ${WIFI_SSID_1}
+
+    Wait Until Keyword Succeeds                    5x    1s    Ping Should Succeed    ping_address=${TO_GOOGLE}    network_interface=${wlan_interface}
+    # Disconnect Wifi
+    Delete All Wireless
+
+    #####Step 7.3:Watching Youtube on PC
+    Sleep										   10s
+    Log To Console                                 \nWatching Youtube on PC in ${YOUTUBE_DURATION}s...
+    SL.Go To                                       url=${YOUTUBE_URL}
+    SL.Wait Until Element Is Visible               ${YOUTUBE_LOGO}    timeout=10s
+    Sleep                                          ${YOUTUBE_DURATION}
+    SL.Close All Browsers
+
+    [Teardown]    Run Keyword And Ignore Error     GW020BRC_FUNC_09_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_09
+    # GW020BRC_FUNC_09

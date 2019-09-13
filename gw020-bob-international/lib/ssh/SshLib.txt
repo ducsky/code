@@ -1,0 +1,686 @@
+*** Settings ***
+Library                SSHLibrary     WITH NAME    SSHL
+Library                String     WITH NAME    STR
+Resource               ../variables/AllVariables.txt
+
+*** Variable ***
+
+*** Keywords ***
+Get Firmware From Repo And Upload To Device
+    [Arguments]            ${ssh_server_ip}
+    ...                    ${ssh_server_username}
+    ...                    ${ssh_server_password}
+    ...                    ${firmware}
+    ...                    ${firmware_location}
+    SSHL.Open Connection   ${ssh_server_ip}    port=22
+    SSHL.Login             ${ssh_server_username}
+    ...                    ${ssh_server_password}
+    SSHL.Execute Command   curl -o /var/lib/tftpboot/${firmware} ${firmware_location}
+    ${interface_connect_to_ont}=        Get Network Interface Connect ONT
+    ${ip_address_on_pc}=   Get Network Interface Ip Address    network_interface=${interface_connect_to_ont}
+    Log To Console         \nip address on pc ${ip_address_on_pc}\n
+    #SSHL.Execute Command    (echo admin;sleep 3;echo ttcn@77CN;sleep 3;echo tftp -g -t i -f ${FIRMWARE_NAME} 192.168.1.2; sleep 60)| telnet 192.168.1.1 ||:    error=\n Cannot telnet to ONT Device\n
+    SSHL.Write             telnet 192.168.1.1
+    Sleep                  0.5
+    SSHL.Write             admin
+    ${check_output}=       SSHL.Read    delay=0.5s
+    Log                    ${check_output}    console=true
+    Should Contain         ${check_output}    Password:
+    SSHL.Write             ttcn@77CN
+    SSHL.Write             tftp -g -t i -f ${firmware} ${ip_address_on_pc}
+    ${check_output}=       SSHL.Read    delay=50s
+    Log To Console         ${check_output}
+
+###################################
+# Refactoring code, date: 26/1/2018
+# Author: QuangNL
+###################################
+###
+Get Wifi Driver Version
+    [Documentation]        Check wireless driver via telnet
+    [Arguments]            ${delay}=2s
+    SSHL.Write             sh
+    ${sh}=                 SSHL.Read    delay=${delay}
+    Should Contain         ${sh}    \#
+    SSHL.Write             wl ver
+    ${wl_ver}=             SSHL.Read    delay=${delay}
+    ${wl_ver}=             Should Match Regexp    ${wl_ver}      wl0: version [\-\.\:\\sa-zA-Z0-9]+
+    [Return]               ${wl_ver}
+
+###
+Check Disconnected From Interface
+    [Documentation]         Verify disconnect successfully from ONT via LAN connection.
+    ...                     Input:
+    ...                     1. network_interface
+
+    [Arguments]             ${network_interface}
+
+    # Disconnect
+    # Set Network Interface    network_interface=${network_interface}    action=down    ssh_server_password=${ssh_server_password}
+
+    ${ifconfigOut}=         SSHL.Execute Command       ifconfig ${network_interface} | grep 'inet addr' | cut -d: -f2 | awk '{print $1}'
+    Run Keyword If          '${ifconfigOut}' != ''     Fail       Disconnecting from ONT via LAN interface ${network_interface} failed!
+
+###
+Check Connected To Interface
+    [Documentation]         Verify connect successfully to ONT via LAN connection.
+    ...                     Input:
+    ...                     1. network_interface
+
+    [Arguments]             ${network_interface}
+
+    # Connect
+    #Set Network Interface    network_interface=${network_interface}    action=up    ssh_server_password=${ssh_server_password}
+
+    ${ifconfigOut}=         SSHL.Execute Command    ifconfig ${network_interface} | grep 'inet addr' | cut -d: -f2 | awk '{print $1}'
+    ${return}=              Should Match Regexp     ${ifconfigOut}    [0-9]{1,3}\\.+[0-9]{1,3}\\.+[0-9]{1,3}\\.+[0-9]{1,3}
+
+    Log To Console          PC Get IP Address on interface ${network_interface}: ${return}
+
+###
+Get Network Interface Ip Address
+    [Documentation]         Get IP address of network interface. Return None if IP address not found
+    ...                     Input:
+    ...                     1. network_interface
+    ...                     Return:
+    ...                     1. network_interface_ip_addr
+
+    [Arguments]             ${network_interface}
+    ${network_interface_ip_addr}=         SSHL.Execute Command    ifconfig ${network_interface} | grep 'inet addr' | cut -d: -f2 | awk '{print $1}'
+    ${return_code}=         Run Keyword And Return Status         Should Match Regexp     ${network_interface_ip_addr}    [0-9]{1,3}\\.+[0-9]{1,3}\\.+[0-9]{1,3}\\.+[0-9]{1,3}
+    Return From Keyword If  '${return_code}' == 'False'           None
+    [Return]                ${network_interface_ip_addr}
+
+###
+Get SSID PC Connected To
+    [Documentation]         Get name of SSID PC connected to
+
+    ${output}=              SSHL.Execute Command    iwgetid -r
+    [Return]                ${output}
+
+###
+Delete All Wireless
+    Log To Console      Delete all wireless
+    Enable Wifi
+    ${all_wireless}=    SSHL.Execute Command       nmcli --fields UUID,Type connection show | grep 'wireless' | awk '{print $1}'
+    ${all_wireless}=    STR.Replace String    ${all_wireless}    \n    ${SPACE}
+    Run Keyword If    '${all_wireless}' != ''    SSHL.Execute Command    sudo nmcli connection delete uuid ${all_wireless}
+    ...    ELSE    Log To Console    Already deleted Wireless
+
+###
+Enable Wifi
+    Log To Console      Enable Wifi
+    SSHL.Execute Command    sudo nmcli radio wifi on
+
+###
+Wifi Rescan
+    [Arguments]                                    ${wifi_ssid}
+    SSHL.Execute Command                           nmcli device wifi rescan
+    ${wirelessList}=                               SSHL.Execute Command    nmcli device wifi list
+    Should Contain                                 ${wirelessList}    ${wifi_ssid}
+
+###
+Connect To Wifi
+    [Documentation]         Connect to wifi with SSID
+    ...                     Input:
+    ...                     1. wireless_network_interface: Default if wlan0
+    ...                     2. ssid
+    ...                     3. password
+
+    [Arguments]             ${wireless_network_interface}    ${ssid}    ${ssid_password}=${EMPTY}
+
+    # Enable Wifi
+    Enable Wifi
+
+    # Delele all Wireless
+    Delete All Wireless
+
+    # Check wifi SSID existed in wifi list
+    ${wirelessList}=        SSHL.Execute Command    nmcli device wifi list
+    Should Contain          ${wirelessList}         ${ssid}
+
+    Run Keyword If         '${ssid_password}'=='${EMPTY}'    SSHL.Execute Command              sudo nmcli device wifi connect '${ssid}'
+    ...        ELSE         SSHL.Execute Command              sudo nmcli device wifi connect '${ssid}' password ${ssid_password}
+
+    # Verify
+    ${isConnectedSuccess}=      Run Keyword And Return Status   Wait Until Keyword Succeeds      60s     1s   Check Connected To Interface    network_interface=${wireless_network_interface}
+    Run Keyword If          ${isConnectedSuccess} == True        Log To Console    Connecting succeeds to wifi ${ssid}
+    ...    ELSE             Fail      Connecting failed to wifi ${ssid}
+
+###
+Disconnect From Wifi
+    [Documentation]         Disconnect from wifi
+    ...                     Input:
+    ...                     1. wireless_network_interface
+
+    [Arguments]             ${wireless_network_interface}
+    # Disconnect from wifi
+    Delete All Wireless
+
+    # Verify disconnect from wifi successfully
+    ${isDisconnectedSuccess}=      Run Keyword And Return Status
+    ...                     Wait Until Keyword Succeeds     60s     1s    Check Disconnected From Interface    network_interface=${wireless_network_interface}
+    Run Keyword If          ${isDisconnectedSuccess}        Log To Console       Disconnecting from wifi successfully
+    ...    ELSE             Fail      Disconnecting from wifi failed
+
+###
+Disconnect From ONT Via LAN
+    [Documentation]         Get network interface which connected to ONT via LAN connection, then disconnect that network interface.
+    ...                     Return Failed if disconnecting from LAN failed
+    ...                     Input:
+    ...                     1. network_interface
+
+    [Arguments]             ${network_interface}
+
+    # Do disconnect
+    SSHL.Execute Command    sudo nmcli device disconnect ${network_interface} |:
+
+    # Verify disconnecting successfully, try again until success
+    ${isDisconnectedSuccess}=      Run Keyword And Return Status
+    ...                     Wait Until Keyword Succeeds     60s     1s    Check Disconnected From Interface    network_interface=${network_interface}
+    Run Keyword If          ${isDisconnectedSuccess}        Log To Console       Disconnecting ${network_interface} from LAN successfully
+    ...    ELSE             Fail      Disconnecting ${network_interface} from LAN failed
+
+###
+Connect To ONT Via LAN
+    [Documentation]         Get network interface which connected to ONT via LAN connection, then connect that network interface.
+    ...                     Return Failed if connecting to LAN failed
+    ...                     Input:
+    ...                     1. network_interface
+
+    [Arguments]             ${network_interface}
+
+    SSHL.Execute Command    sudo nmcli device connect ${network_interface}
+
+    # Verify connecting successfully, try again until success
+    ${isConnectedSuccess}=      Run Keyword And Return Status    Wait Until Keyword Succeeds      60s     1s   Check Connected To Interface     network_interface=${network_interface}
+    Run Keyword If          ${isConnectedSuccess}        Log To Console       Connecting ${network_interface} succeeds to LAN
+    ...    ELSE             Fail      Connecting ${network_interface} failed to LAN
+
+###
+Get Network Interface Connect ONT
+    [Documentation]         Find network interface which connected to ONT via LAN connection
+    ...                     Return:
+    ...                     1. lan_interface
+
+    # Find which interface connecting to ONT, if not found set default interface is eth1
+    ${lan_interface}=       SSHL.Execute Command         ifconfig | grep -B1 "inet addr:192.168" | awk '$1!="inet" && $1!="--" {print $1}' | grep eth
+    Run Keyword If          '${lan_interface}' == ''      Set Suite Variable     ${lan_interface}     eth1
+    ...       ELSE          Set Suite Variable            ${lan_interface}
+    [Return]                    ${lan_interface}
+
+###
+Connect To ONT Via LAN With Network Interface
+    [Documentation]         Get network interface which connected to ONT via LAN connection, then connect that network interface.
+    ...                     Return Failed if connecting to LAN failed
+    ...                     Input:
+    ...                     1. lan_interface
+
+    [Arguments]             ${lan_interface}
+
+    # Connect
+    SSHL.Execute Command    sudo nmcli device connect ${lan_interface}
+
+    # Verify connecting successfully, try again until success
+    ${isConnectedSuccess}=      Run Keyword And Return Status    Wait Until Keyword Succeeds      60s     1s   Check Connected To Interface     network_interface=${lan_interface}
+    Run Keyword If          ${isConnectedSuccess}        Log To Console       Connecting succeeds to LAN
+    ...    ELSE             Fail      Connecting failed to LAN
+
+Monitor PPPD Watch Dog
+    [Documentation]         Check Monitor PPPD Watch Dog.
+    ...                     Step 1: List process PPPD by ps command
+    ...                     Step 2: Remove PPPD process
+    ...                     Step 3: Waiting for 15 seconds and check process PPPD again
+    ...                     Input:
+    ...                     1. ssh_server_ip: ip of test control pc
+    ...                     2. ssh_server_username: username of test control pc
+    ...                     3. ssh_server_password: password of test control pc
+    ...                     Author: BinhNT5
+    ...                     24/1/2018
+    [Arguments]             ${ssh_server_ip}    ${ssh_server_username}    ${ssh_server_password}
+    ...                     ${ssh_timeout}=20s
+    Log                     Check Monitor PPPD Watch Dog    console=true
+    Telnet To ONT Device    ssh_server_ip=${ssh_server_ip}
+    ...                     ssh_server_username=${ssh_server_username}
+    ...                     ssh_server_password=${ssh_server_password}
+    ...                     ssh_timeout=${ssh_timeout}
+    SSHL.Write              sh
+    ${check_output}=        SSHL.Read    delay=0.5s
+    Log                     ${check_output}    console=true
+    Should Contain          ${check_output}    BusyBox
+    Log To Console          \nCheck pppd process exist\n
+    SSHL.Write              ps |grep "[p]ppd"
+    ${ps_output}=           SSHL.Read    delay=0.5s
+    Log                     ${ps_output}    console=true
+    ${pppd_id}=             Should Match Regexp    ${ps_output}    ^\\s([0-9]+)
+    ${pppd_id}              Set Variable       @{pppd_id}[${1}]
+    Log                     ${pppd_id}    console=true
+    Log To Console          \nCheck delete pppd process and check pppd process should not exist when using ps command\n
+    SSHL.Write              kill -9 ${pppd_id}
+    Sleep                   2
+    SSHL.Write              ps |grep "[p]ppd"
+    ${ps_output}=           SSHL.Read    delay=0.5s
+    Log                     ${ps_output}    console=true
+    ${check_exist_pppd}     Run Keyword And Return Status    Should Match Regexp    ${ps_output}    ^\\s[0-9]+
+    Run Keyword If          ${check_exist_pppd}    Fail    \nProcess pppd should not exist\n
+    Log To Console          \nWait and check pppd process\n
+    sleep                   45
+    SSHL.Write              ps |grep "[p]ppd"
+    ${ps_output}=           SSHL.Read    delay=0.5s
+    Log                     ${ps_output}    console=true
+    Should Match Regexp     ${ps_output}    ^\\s[0-9]+
+
+###
+Open Connection And Login To Remote Machine
+    [Documentation]         SSH to remote machine
+    ...                     1. ssh_server_ip
+    ...                     2. ssh_server_username
+    ...                     3. ssh_server_password
+    ...                     4. ssh_timeout: Default is 20
+
+    [Arguments]             ${ssh_server_ip}    ${ssh_server_username}    ${ssh_server_password}
+    ...                     ${ssh_timeout}=20s
+
+    SSHL.Open Connection    ${ssh_server_ip}    timeout=${ssh_timeout}    prompt=$
+    ${login_output}=        SSHL.Login          ${ssh_server_username}    ${ssh_server_password}
+    Should Contain          ${login_output}     ${ssh_server_username}
+
+###
+Set Network Interface
+    [Documentation]         Set network interface by command "sudo nmcli device"
+    ...                     Input:
+    ...                     1. network_interface
+    ...                     2. action: connect/disconnect
+
+    [Arguments]             ${network_interface}    ${action}
+
+    SSHL.Execute Command    sudo nmcli device ${action} ${network_interface} |:
+
+###
+Renew IP Address
+    [Arguments]             ${network_interface}    ${ip_adrress_contain}=192.168.1.
+    Set Network Interface   ${network_interface}    disconnect
+    Sleep                   1s
+    Set Network Interface   ${network_interface}    connect
+    Sleep                   1s
+    ${ip_address_on_pc}=    Get Network Interface Ip Address    network_interface=${network_interface}
+    Should Contain          ${ip_address_on_pc}    ${ip_adrress_contain}
+
+###
+Ping From PC To
+    [Documentation]         SSH to remote machine to ping to an address. Return True if ping succeed, else return False
+    ...                     Input:
+    ...                     1. ping_address
+    ...                     Return:
+    ...                     1. True or False
+
+    [Arguments]             ${ping_address}    ${network_interface}
+    ${ping_output}     ${ping_error}      ${ping_rc}=         Execute Command    ping -i 0.3 ${ping_address} -c 5 -I ${network_interface}    return_rc=True    return_stderr=True
+    Log To Console    Ping output: ${ping_output}
+    Log To Console    Ping error: ${ping_error}
+    ${isPingFailed}=        Run Keyword And Return Status     Should Contain    ${ping_output}    100% packet loss
+    Return From Keyword If    '${isPingFailed}' == 'True' or '${ping_rc}' != '0'    False
+    [Return]   True
+
+Ping From PC To_TC_20_02
+    [Documentation]         SSH to remote machine to ping to an address. Return True if ping succeed, else return False
+    ...                     Input:
+    ...                     1. ping_address
+    ...                     Return:
+    ...                     1. True or False
+
+    [Arguments]             ${mtu}    ${ping_address}    ${network_interface}
+    ${ping_output}     ${ping_error}      ${ping_rc}=         Execute Command    ping -s  ${mtu} -i 0.3 ${ping_address} -c 5 -I ${network_interface}      return_rc=True    return_stderr=True
+    Log To Console    Ping output: ${ping_output}
+    Log To Console    Ping error: ${ping_error}
+    ${isPingFailed}=        Run Keyword And Return Status     Should Contain    ${ping_output}    100% packet loss
+    Return From Keyword If    '${isPingFailed}' == 'True' or '${ping_rc}' != '0'    False
+    [Return]   True
+###
+Ping Should Succeed
+    [Documentation]         Execute ping should be succeed
+    ...                     Input:
+    ...                     1. ping_address
+    ...                     2. network_interface
+    ...                     Return:
+    ...                       Pass or Failed
+
+    [Arguments]             ${ping_address}    ${network_interface}
+
+    ${ping_rc}=             Ping From PC To    ${ping_address}    ${network_interface}
+    ${result}=              Run Keyword And Return Status    Should Be True    '${ping_rc}' == 'True'
+    Run Keyword If          '${result}' == 'True'     Log To Console    Ping successfully
+    ...       ELSE          Fail     Ping failed
+
+###
+Ping Should Failed
+    [Documentation]         Execute ping should be failed
+    ...                     Input:
+    ...                     1. ping_address
+    ...                     Return:
+    ...                       Pass or Failed
+
+    [Arguments]             ${ping_address}    ${network_interface}
+
+    ${ping_rc}=             Ping From PC To    ${ping_address}    ${network_interface}
+    ${result}=              Run Keyword And Return Status    Should Be True    '${ping_rc}' == 'False'
+    Run Keyword If          '${result}' == 'True'     Log To Console    Ping failed is true
+    ...       ELSE          Fail     Ping still success
+
+###
+Ping Should Failed_TC_20_02
+    [Documentation]         Execute ping should be failed
+    ...                     Input:
+    ...                     1. ping_address
+    ...                     Return:
+    ...                       Pass or Failed
+
+    [Arguments]             ${mtu}    ${ping_address}    ${network_interface}
+
+    ${ping_rc}=             Ping From PC To_TC_20_02    ${mtu}    ${ping_address}    ${network_interface}
+    ${result}=              Run Keyword And Return Status    Should Be True    '${ping_rc}' == 'False'
+    Run Keyword If          '${result}' == 'True'     Log To Console    Ping failed is true
+    ...       ELSE          Fail     Ping still success
+###
+Get Ftp Download Speed
+    [Documentation]         Get FTP download speed if all ftp session is success
+
+    [Arguments]             ${ssh_server_ip}
+    ...                     ${ssh_server_username}
+    ...                     ${ssh_server_password}
+    ...                     ${ftp_log_file_path}=/var/log/vsftpd.log
+
+    Open Connection And Login To Remote Machine    ssh_server_ip=${ssh_server_ip}
+    ...                                            ssh_server_username=${ssh_server_username}
+    ...                                            ssh_server_password=${ssh_server_password}
+    SSHL.Write              sudo cat ${ftp_log_file_path} | grep -i "DOWNLOAD"
+    ${output}=              SSHL.Read    delay=0.5s
+    ${isRoot}=              Run Keyword And Return Status    Should Contain   ${output}    [sudo] password for
+    Run Keyword If    '${isRoot}' == 'True'     SSHL.Write    ${ssh_server_password}
+    ${output}=              SSHL.Read Until Prompt
+    ${groupOne}=            STR.Get Regexp Matches      ${output}     ([0-9]+\\.[0-9]+)Kbyte/sec    1
+    [Return]                ${groupOne}
+
+    [Teardown]              SSHL.Close Connection
+###
+Clear Ftp Log File
+    [Documentation]         Clear ftp log file
+    ...                     Input:
+    ...                     1. ftp_log_file_path: Path to ftp log file, default is /var/log/vsftpd.log
+
+    [Arguments]             ${ssh_server_ip}
+    ...                     ${ssh_server_username}
+    ...                     ${ssh_server_password}
+    ...                     ${ftp_log_file_path}=/var/log/vsftpd.log
+
+    Open Connection And Login To Remote Machine    ssh_server_ip=${ssh_server_ip}
+    ...                                            ssh_server_username=${ssh_server_username}
+    ...                                            ssh_server_password=${ssh_server_password}
+    SSHL.Write              sudo -s
+    ${output}=              SSHL.Read    delay=0.5s
+    ${isRoot}=              Run Keyword And Return Status    Should Contain   ${output}    [sudo] password for
+    Run Keyword If    '${isRoot}' == 'True'     SSHL.Write    ${ssh_server_password}
+    Run Keyword If    '${isRoot}' == 'True'     SSHL.Set Client Configuration     prompt=#
+    SSHL.Read Until Prompt
+    SSHL.Write              echo -n "" > ${ftp_log_file_path}
+    SSHL.Read Until Prompt
+    Ftp Log File Should Be Blank      ssh_server_ip=${ssh_server_ip}
+    ...                               ssh_server_username=${ssh_server_username}
+    ...                               ssh_server_password=${ssh_server_password}
+    ...                               ftp_log_file_path=${ftp_log_file_path}
+    SSHL.Close All Connections
+
+###
+Ftp Log File Should Be Blank
+    [Documentation]         Verify Ftp log file should be blank
+    ...                     Input:
+    ...                     1. ftp_log_file_path: Path to ftp log file, default is /var/log/vsftpd.log
+
+    [Arguments]             ${ssh_server_ip}
+    ...                     ${ssh_server_username}
+    ...                     ${ssh_server_password}
+    ...                     ${ftp_log_file_path}=/var/log/vsftpd.log
+
+    Open Connection And Login To Remote Machine    ssh_server_ip=${ssh_server_ip}
+    ...                                            ssh_server_username=${ssh_server_username}
+    ...                                            ssh_server_password=${ssh_server_password}
+    SSHL.Write              sudo -s
+    ${output}=              SSHL.Read    delay=0.5s
+    ${isRoot}=              Run Keyword And Return Status    Should Contain   ${output}    [sudo] password for
+    Run Keyword If    '${isRoot}' == 'True'     SSHL.Write    ${ssh_server_password}
+    Run Keyword If    '${isRoot}' == 'True'     SSHL.Set Client Configuration     prompt=#
+    SSHL.Read Until Prompt
+    SSHL.Write              cat ${ftp_log_file_path}
+    ${output}=              SSHL.Read Until Prompt
+    Should Start With       "${output}"    "root
+    SSHL.Close Connection
+
+###
+Generate Ftp Download File
+    [Documentation]         Generate FTP download file
+    ...                     Input:
+    ...                     1. download_file_directory
+    ...                     2. download_file_name
+    ...                     3. file_size: Default is 5G
+
+    [Arguments]             ${ssh_server_ip}
+    ...                     ${ssh_server_username}
+    ...                     ${ssh_server_password}
+    ...                     ${download_file_directory}
+    ...                     ${download_file_name}
+    ...                     ${file_size}=5G
+
+    Delete Ftp Download File    ssh_server_ip=${ssh_server_ip}
+    ...                     ssh_server_username=${ssh_server_username}
+    ...                     ssh_server_password=${ssh_server_password}
+    ...                     download_file_directory=${download_file_directory}
+    ...                     download_file_name=${download_file_name}
+
+    Open Connection And Login To Remote Machine    ssh_server_ip=${ssh_server_ip}
+    ...                                            ssh_server_username=${ssh_server_username}
+    ...                                            ssh_server_password=${ssh_server_password}
+
+    # Rename directory path contain slash
+    ${dir_end_with_slash}=  Run Keyword And Return Status    Should End With   ${download_file_directory}  /
+    ${download_file_directory}=    Set Variable If    '${dir_end_with_slash}' == 'False'    ${download_file_directory}/
+
+    SSHL.Execute Command    mkdir -p ${download_file_directory}
+    SSHL.Execute Command    fallocate -l ${file_size} ${download_file_directory}${download_file_name}
+    SSHL.File Should Exist  ${download_file_directory}${download_file_name}
+
+    [Teardown]              SSHL.Close Connection
+
+###
+Delete Ftp Download File
+    [Documentation]         Delete FTP download file. Return None if file does not exist.
+    ...                     Input:
+    ...                     1. download_file_directory
+    ...                     2. download_file_name
+
+    [Arguments]             ${ssh_server_ip}
+    ...                     ${ssh_server_username}
+    ...                     ${ssh_server_password}
+    ...                     ${download_file_directory}
+    ...                     ${download_file_name}
+
+    Open Connection And Login To Remote Machine    ssh_server_ip=${ssh_server_ip}
+    ...                                            ssh_server_username=${ssh_server_username}
+    ...                                            ssh_server_password=${ssh_server_password}
+
+    # Rename directory path contain slash
+    ${dir_end_with_slash}=  Run Keyword And Return Status    Should End With   ${download_file_directory}  /
+    ${download_file_directory}=    Set Variable If    '${dir_end_with_slash}' == 'False'    ${download_file_directory}/
+
+    # Check directory exist
+    ${directory_exist}=     Run Keyword And Return Status    SSHL.Directory Should Exist    ${download_file_directory}
+    Run Keyword If          '${directory_exist}' == 'False'  Return From Keyword    None
+
+    # Check file exist
+    ${file_exist}=          Run Keyword And Return Status    SSHL.File Should Exist  ${download_file_directory}${download_file_name}
+    Run Keyword If          '${file_exist}' == 'True'        SSHL.Execute Command     rm -f ${download_file_directory}${download_file_name}
+    ...       ELSE          Return From Keyword    None
+
+    # Verify file is deleted
+    SSHL.File Should Not Exist    ${download_file_directory}${download_file_name}
+
+    [Teardown]              SSHL.Close Connection
+
+##################
+# End of QuangNL #
+##################
+Ssh and execute command
+    [Documentation]             ssh & exexcute command on remote server.
+    ...                         Input:
+    ...                         1. server_ip                    remote server ip
+    ...                         2. user_name                    uername
+    ...                         3. password                     password
+    ...                         4. command                      command
+    [Arguments]                     ${server_ip}           ${user_name}      ${password}           ${command}
+    SSHL.Open Connection            ${server_ip}            port=22
+    SSHL.Login                      ${user_name}            ${password}
+    SSHL.Execute Command            ${command}
+    [Teardown]                      Close Connection
+
+Ssh and check file exits
+    [Documentation]             ssh & check file exits on remote server.
+    ...                         Input:
+    ...                         1. server_ip                    remote server ip
+    ...                         2. user_name                    uername
+    ...                         3. password                     password
+    ...                         4. file_name                    location of file
+    [Arguments]                     ${server_ip}           ${user_name}      ${password}           ${file_name}
+    SSHL.Open Connection            ${server_ip}            port=22
+    SSHL.Login                      ${user_name}            ${password}
+    SSHL.file should exist            ${file_name}
+    [Teardown]                      Close Connection
+
+Ssh check and remove file
+    [Documentation]             ssh & check file exits on remote server.
+    ...                         Input:
+    ...                         1. server_ip                    remote server ip
+    ...                         2. user_name                    uername
+    ...                         3. password                     password
+    ...                         4. file_location                    location of file
+    [Arguments]                     ${server_ip}           ${user_name}      ${password}           ${file_location}
+    SSHL.Open Connection            ${server_ip}            port=22
+    SSHL.Login                      ${user_name}            ${password}
+    ${exist}=                       Run Keyword And Return Status        SSHL.File Should Exist               ${file_location}
+    Run Keyword If		            "${exist}" == "True"                    SSHL.Execute Command              rm -f ${file_location}
+    [Teardown]                      Close Connection
+
+Get Remote File
+    [Documentation]             Get file from remote server to local.
+    ...                         Input:
+    ...                         1. server_ip                    remote server ip
+    ...                         2. user_name                    uername
+    ...                         3. password                     password
+    ...                         4. file_dir                     location of file
+    ...                         5. local_dir                    location of file (default: Current Dir)
+    [Arguments]                     ${server_ip}           ${user_name}      ${password}           ${remote_file}         ${local_dir}=.
+    SSHL.Open Connection            ${server_ip}            port=22
+    SSHL.Login                      ${user_name}            ${password}
+    SSHL.Get File                   ${remote_file}             ${local_dir}
+    [Teardown]                      Close Connection
+
+Get Time Date
+    [Documentation]         Get time date
+    ...                     Author:BinhNT5
+    ...                     30/1/2018
+    ...                     1. ssh_server_ip
+    ...                     2. ssh_server_username
+    ...                     3. ssh_server_password
+    ...                     4. ssh_timeout: Default is 20
+    ...                     Return:
+    ...                     current time in hour and minute
+    [Arguments]                                    ${ssh_server_ip}    ${ssh_server_username}    ${ssh_server_password}
+    ...                                            ${ssh_timeout}=20s
+    Open Connection And Login To Remote Machine    ssh_server_ip=${ssh_server_ip}
+    ...                                            ssh_server_username=${ssh_server_username}
+    ...                                            ssh_server_password=${ssh_server_password}
+    ...                                            ssh_timeout=${ssh_timeout}
+    SSHL.Write                                     TZ='Asia/Ho_Chi_Minh' date
+    ${current_time_date}=                          SSHL.Read    delay=0.5s
+    ${current_time_date}=                          Should Match Regexp    ${current_time_date}    [0-9]+\\:[0-9]+
+    ${current_time_hour}=                          Should Match Regexp    ${current_time_date}    ^[0-9]+
+    ${current_time_hour}=                          Convert To Integer     ${current_time_hour}
+    ${current_time_minute}=                        Should Match Regexp    ${current_time_date}    \\:[0-9]+
+    ${current_time_minute}=                        Should Match Regexp    ${current_time_minute}      [0-9]+
+    [Return]                                       ${current_time_hour}    ${current_time_minute}
+
+###
+Telnet To ONT Device
+    [Documentation]         Telnet to ONT Device
+    ...                     Input:
+    ...                     1. ssh_server_ip
+    ...                     2. ssh_server_username
+    ...                     3. ssh_server_password
+    ...                     4. ssh_timeout: Default is 20
+    ...                     5. delay: Default is 2s
+    ...                     Author: BinhNT5
+    ...                     1/2/2018
+    [Arguments]                                    ${ssh_server_ip}    ${ssh_server_username}    ${ssh_server_password}    ${delay}=5s
+    ...                                            ${ssh_timeout}=30s
+    ...                                            ${ip_telnet}=192.168.1.1
+    ...                                            ${user_telnet}=admin
+    ...                                            ${pass_telnet}=gpon@Vnt00
+    Open Connection And Login To Remote Machine    ssh_server_ip=${ssh_server_ip}
+    ...                                            ssh_server_username=${ssh_server_username}
+    ...                                            ssh_server_password=${ssh_server_password}
+    ...                                            ssh_timeout=${ssh_timeout}
+    SSHL.Write              telnet ${ip_telnet}
+    ${check_output}=        SSHL.Read    delay=${delay}
+    Should Contain          ${check_output}    Login:
+    SSHL.Write              ${user_telnet}
+    ${check_output}=        SSHL.Read    delay=${delay}
+    Should Contain          ${check_output}    Password:
+    SSHL.Write              ${pass_telnet}
+    Sleep                   1s
+
+Get Network Interface Connected ONT
+    [Documentation]         Return  Interface connected ONT router
+    ${lan_interface}=                   Set Variable     None
+    ${lan_interface}=       SSHL.Execute Command         ifconfig | grep -B1 "inet addr:192.168" | awk '$1!="inet" && $1!="--" {print $1}' | grep eth
+    Run Keyword If          '${lan_interface}' == ''      Set Suite Variable     ${lan_interface}     eth1
+    ...       ELSE          Set Suite Variable            ${lan_interface}
+    [Return]                ${lan_interface}
+
+Get DNS From Computer Connected ONT
+    [Documentation]         Author QuyenNM
+    ...                     Get DNS from computer connected ONT router by use ssh
+    ...                     1.network interface connected ONT
+    [Arguments]             ${network_interface}
+    ${dns}=                 Set Variable     None
+    ${dns}=                 SSHL.Execute Command    nmcli device show ${network_interface} | grep DNS | awk '{print $2}'
+    [Return]                ${dns}
+
+
+Get ONT Device Date Time
+    [Documentation]         Get ONT Device by telnet to ont device.
+    ...                     Return Date time in format: %M/%H/%d/%m/%w
+    ...                     Author: BinhNT5
+    ...                     Date:16/3/2018
+    [Arguments]             ${ssh_server_ip}
+    ...                     ${ssh_server_username}
+    ...                     ${ssh_server_password}
+    ...                     ${ssh_timeout}=20s
+    Telnet To ONT Device    ssh_server_ip=${ssh_server_ip}
+    ...                     ssh_server_username=${ssh_server_username}
+    ...                     ssh_server_password=${ssh_server_password}
+    ...                     ssh_timeout=${ssh_timeout}
+    SSHL.Write              sh
+    ${check_output}=        SSHL.Read    delay=1s
+    Log                     ${check_output}    console=true
+    Should Contain          ${check_output}    BusyBox
+    SSHL.Write              date "+%M/%H/%d/%m/%Y/%w"
+    ${date_time}=           SSHL.read    delay=1s
+    [Return]                ${date_time}
+    
+    
+Up Down Network Card PC Linux
+    [Arguments]    ${network_interface_card}    
+    SSHL.Write    sudo ifconfig ${network_interface_card} down
+    Sleep    1  
+    SSHL.Write    sudo ifconfig ${network_interface_card} up
+    Sleep    5  
+    SSHL.Write    ifconfig
+    Sleep    10    

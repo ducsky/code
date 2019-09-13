@@ -1,0 +1,117 @@
+*** Settings ***
+Library                                       SeleniumLibrary    WITH NAME    SL
+Resource                                      selenium/Login/SeleniumLoginLib.txt
+Resource                                      selenium/NetworkSettings/Wan/SeleniumNetworkSettingsWanLib.txt
+Resource                                      selenium/NetworkSettings/Lan/SeleniumNetworkSettingsLanIPv4Lib.txt
+Resource                                      selenium/DeviceInfo/Wan/SeleniumDeviceInfoWanLib.txt
+Resource                                      variables/AllVariables.txt
+
+*** Variables ***
+
+*** Keywords ***
+GW020BRC_FUNC_08_Teardown
+    SL.Delete All Cookies
+    SL.Close All Browsers
+
+GW020BRC_FUNC_08_TC_01_Create_IPoE
+    [Arguments]                              ${wan_ip_address}    ${wan_subnet_mask}    ${wan_gateway}
+    #####Create WAN IPoE with special WAN IP address
+    Log To Console                           \nStep 1: Configure special WAN IP address\n
+    Open Network Settings Wan Page           url=${NETWORK_SETTINGS_WAN_URL}
+    Create New Wan IPoE                      url=${NETWORK_SETTINGS_WAN_URL}
+    ...                                      network_protocol= IPv4
+    ...                                      priority=${CORRECT_IPOE_VLAN_PRIORITY}
+    ...                                      vlan_id=${CORRECT_IPOE_VLAN_ID_STATIC}
+    ...                                      configure_wan_service_settings=True
+    ...                                      configure_static_ip=True
+    ...                                      wan_ip_address=${wan_ip_address}
+    ...                                      wan_subnet_mask=${wan_subnet_mask}
+    ...                                      wan_gateway=${wan_gateway}
+
+    ${popup_message}=                        SL.Handle Alert
+    [Return]                                 ${popup_message}
+
+GW020BRC_FUNC_08_TC_01
+    SL.Set Selenium Speed                   0.7
+    Log To Console                          Check Special IP for WAN
+
+    #########Step 1: Login then access to Network Settings Wan Page
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+	Log To Console							\nStep1.1
+    #####Create WAN IPoE with special WAN IP address
+    ${popup_message}=                        GW020BRC_FUNC_08_TC_01_Create_IPoE    wan_ip_address=10.10.10.0    wan_subnet_mask=255.255.255.0    wan_gateway=10.10.10.1
+    Should Contain                           ${popup_message}    WAN IP address "10.10.10.0" is special IP address.
+    Log To Console							\nStep1.2
+    #####Create WAN IPoE with special subnet mask address
+    ${popup_message}=                        GW020BRC_FUNC_08_TC_01_Create_IPoE    wan_ip_address=10.10.10.2    wan_subnet_mask=255.255.255.255    wan_gateway=10.10.10.1
+    Should Contain                           ${popup_message}    WAN subnet mask "255.255.255.255" is invalid IP address.
+    Log To Console							\nStep1.3
+    #####Create WAN IPoE with special Gateway IP Address
+    ${popup_message}=                        GW020BRC_FUNC_08_TC_01_Create_IPoE    wan_ip_address=10.10.10.2    wan_subnet_mask=255.255.255.0    wan_gateway=0.0.0.0
+    Should Contain                           ${popup_message}    WAN subnet mask "0.0.0.0" is invalid gateway IP address.
+
+    SL.Close All Browsers
+
+GW020BRC_FUNC_08_TC_02
+    SL.Set Selenium Speed                    0.2
+    Log To Console                           Check Special IP for LAN
+
+    #########Login then access to Network Settings Wan Page
+    Login To Browser                         remote_selenium_server_tmp=${REMOTE_SELENIUM_SERVER}
+    ...                                      url=${LOGIN_URL}
+    ...                                      username=${ONT_WEB_USER}
+    ...                                      password=${ONT_WEB_PASS}
+    ...                                      browser=${BROWSER}
+    Welcome Page Should Be Open
+	
+	Log To Console							\n2.1
+    # IP
+    Config IPv4 DHCP                         ip_address=192.168.1.0
+    ...                                      subnet_mask=255.255.255.0
+    ...                                      start_ip_address=192.168.1.2
+    ...                                      end_ip_address=192.168.1.254
+    ${popup_message}=                        SL.Handle Alert
+    Should Contain                           ${popup_message}     Address "192.168.1.0" is special IP address with subnet mask "255.255.255.0".
+    # MASK
+    Log To Console							\n2.2
+    Config IPv4 DHCP                         ip_address=192.168.1.1
+    ...                                      subnet_mask=255.255.255.255
+    ...                                      start_ip_address=192.168.1.2
+    ...                                      end_ip_address=192.168.1.254
+    ${popup_message}=                        SL.Handle Alert
+    Should Contain                           ${popup_message}     Subnet mask "255.255.255.255" is invalid.
+    # START_IP
+    Log To Console							\n2.3
+    Config IPv4 DHCP                         ip_address=192.168.1.1
+    ...                                      subnet_mask=255.255.255.0
+    ...                                      start_ip_address=192.168.1.0
+    ...                                      end_ip_address=192.168.1.254
+    ${popup_message}=                        SL.Handle Alert
+    Should Contain                           ${popup_message}     Address DHCP is special IP address
+    # END_IP
+    Log To Console							\n2.4
+    Config IPv4 DHCP                         ip_address=192.168.1.1
+    ...                                      subnet_mask=255.255.255.0
+    ...                                      start_ip_address=192.168.1.2
+    ...                                      end_ip_address=192.168.1.0
+    ${popup_message}=                        SL.Handle Alert
+    Should Contain                           ${popup_message}     Address DHCP is special IP address
+
+    SL.Close All Browsers
+
+GW020BRC_FUNC_08
+    Log To Console                          Thuc hien bai test: Dat cac IP dac biet tren WAN
+    GW020BRC_FUNC_08_TC_01
+    Log To Console                          Thuc hien bai test: Dat cac IP dac biet tren LAN
+    GW020BRC_FUNC_08_TC_02
+
+    [Teardown]                              Run Keyword And Ignore Error     GW020BRC_FUNC_08_Teardown
+
+# *** Test cases ***
+# GW020BRC_FUNC_08
+    # GW020BRC_FUNC_08
