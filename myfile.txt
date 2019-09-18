@@ -1,4 +1,10 @@
 fdasdfdfasdfsadfdsafdsa
 
+<<<<<<< HEAD
 
 thay doi issue 2
+=======
+Thay doi commit 3
+>>>>>>> issue
+sdaDS
+DSASFDF
